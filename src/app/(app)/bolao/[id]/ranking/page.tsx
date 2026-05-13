@@ -1,7 +1,7 @@
 import { requireAuth } from "@/lib/auth";
 import { requireBolaoAccess } from "@/lib/access";
 import { db } from "@/db";
-import { bolaoMatchState, matchOfficialResult, memberships, predictions } from "@/db/schema";
+import { bolaoMatchState, matches, matchOfficialResult, memberships, predictions } from "@/db/schema";
 import { and, eq, sql } from "drizzle-orm";
 import { getUsers } from "@/lib/clerk-users";
 import { colorFor } from "@/lib/colors";
@@ -37,6 +37,14 @@ export default async function RankingPage({ params }: { params: Promise<{ id: st
            and not (${predictions.scoreA} = ${rA} and ${predictions.scoreB} = ${rB})
            and sign(${predictions.scoreA} - ${predictions.scoreB}) <> sign(${rA} - ${rB})
           then 1 else 0 end), 0)::int`,
+      championBonus: sql<number>`
+        coalesce(sum(case
+          when ${matches.stage} = 'final'
+           and ${rA} is not null
+           and ${predictions.scoreA} <> ${predictions.scoreB}
+           and ${rA} <> ${rB}
+           and sign(${predictions.scoreA} - ${predictions.scoreB}) = sign(${rA} - ${rB})
+          then 50 else 0 end), 0)::int`,
       points: sql<number>`
         coalesce(sum(case
           when ${rA} is not null then
@@ -45,13 +53,22 @@ export default async function RankingPage({ params }: { params: Promise<{ id: st
               when sign(${predictions.scoreA} - ${predictions.scoreB}) = sign(${rA} - ${rB}) then 5
               else 0
             end
-          else 0 end), 0)::int`,
+          else 0 end), 0)::int
+        +
+        coalesce(sum(case
+          when ${matches.stage} = 'final'
+           and ${rA} is not null
+           and ${predictions.scoreA} <> ${predictions.scoreB}
+           and ${rA} <> ${rB}
+           and sign(${predictions.scoreA} - ${predictions.scoreB}) = sign(${rA} - ${rB})
+          then 50 else 0 end), 0)::int`,
     })
     .from(memberships)
     .leftJoin(
       predictions,
       and(eq(predictions.bolaoId, memberships.bolaoId), eq(predictions.userId, memberships.userId)),
     )
+    .leftJoin(matches, eq(matches.id, predictions.matchId))
     .leftJoin(
       bolaoMatchState,
       and(eq(bolaoMatchState.bolaoId, memberships.bolaoId), eq(bolaoMatchState.matchId, predictions.matchId)),
@@ -180,6 +197,12 @@ export default async function RankingPage({ params }: { params: Promise<{ id: st
                 <b style={{ color: "var(--text)" }}>{r.exact}</b> ex ·{" "}
                 <b style={{ color: "var(--text)" }}>{r.winners}</b> venc ·{" "}
                 <b style={{ color: "var(--text)" }}>{r.misses}</b> err
+                {r.championBonus > 0 && (
+                  <>
+                    {" · "}
+                    <b style={{ color: "var(--accent)" }}>CAMP +50</b>
+                  </>
+                )}
               </div>
               <div
                 className="mono"

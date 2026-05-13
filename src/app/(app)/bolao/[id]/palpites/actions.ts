@@ -29,6 +29,7 @@ export async function savePrediction(formData: FormData) {
   const [row] = await db
     .select({
       kickoffAt: matches.kickoffAt,
+      stage: matches.stage,
       tplA: matches.teamA,
       tplB: matches.teamB,
       stA: bolaoMatchState.teamA,
@@ -60,6 +61,10 @@ export async function savePrediction(formData: FormData) {
   }
   if (isPredictionLocked(row.kickoffAt)) {
     return { error: "Palpites bloqueados 24h antes do jogo." } as const;
+  }
+
+  if (row.stage === "final" && scoreA === scoreB) {
+    return { error: "Empate não permitido na final — escolha o campeão." } as const;
   }
 
   await db

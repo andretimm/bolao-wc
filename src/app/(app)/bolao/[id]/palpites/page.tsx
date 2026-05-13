@@ -36,6 +36,9 @@ export default async function PalpitesPage({ params }: { params: Promise<{ id: s
       <p className="page-sub" style={{ marginTop: 0, marginBottom: 18 }}>
         Placar exato = <b style={{ color: "var(--accent)" }}>+10 pts</b>. Só o vencedor ={" "}
         <b style={{ color: "var(--accent)" }}>+5 pts</b>. Palpite bloqueia 24h antes do jogo.
+        <br />
+        Acertar o campeão (vencedor da final) ={" "}
+        <b style={{ color: "var(--accent)" }}>+50 pts extras</b>. Empate não permitido na final.
       </p>
 
       <div className="card">
@@ -65,6 +68,7 @@ export default async function PalpitesPage({ params }: { params: Promise<{ id: s
               initialScoreA={pred?.scoreA ?? null}
               initialScoreB={pred?.scoreB ?? null}
               earned={earned}
+              isFinal={m.stage === "final"}
             />
           );
         })}

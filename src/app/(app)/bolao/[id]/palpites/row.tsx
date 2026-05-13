@@ -18,6 +18,7 @@ export function PredictionRow(props: {
   initialScoreA: number | null;
   initialScoreB: number | null;
   earned: number;
+  isFinal: boolean;
 }) {
   const [a, setA] = useState<string>(props.initialScoreA?.toString() ?? "");
   const [b, setB] = useState<string>(props.initialScoreB?.toString() ?? "");
@@ -31,6 +32,10 @@ export function PredictionRow(props: {
 
   const submit = () => {
     setError(null);
+    if (props.isFinal && a !== "" && b !== "" && Number(a) === Number(b)) {
+      setError("Sem empate na final.");
+      return;
+    }
     const fd = new FormData();
     fd.set("bolaoId", props.bolaoId);
     fd.set("matchId", props.matchId);
@@ -114,6 +119,8 @@ export function PredictionRow(props: {
           </>
         ) : props.locked ? (
           <span className="tag danger">FECHADO</span>
+        ) : props.isFinal ? (
+          <span className="tag accent">CAMPEÃO +50</span>
         ) : (
           <span className="tag accent">ABERTO</span>
         )}

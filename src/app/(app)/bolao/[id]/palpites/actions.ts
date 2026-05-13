@@ -4,8 +4,8 @@ import { revalidatePath } from "next/cache";
 import { requireAuth } from "@/lib/auth";
 import { requireBolaoAccess } from "@/lib/access";
 import { db } from "@/db";
-import { bolaoMatchState, matches, predictions } from "@/db/schema";
-import { and, eq, sql } from "drizzle-orm";
+import { bolaoMatchState, matches, matchOfficialResult, predictions } from "@/db/schema";
+import { eq, sql } from "drizzle-orm";
 import { isPredictionLocked } from "@/lib/prediction-lock";
 
 export async function savePrediction(formData: FormData) {
@@ -35,21 +35,28 @@ export async function savePrediction(formData: FormData) {
       stB: bolaoMatchState.teamB,
       resultA: bolaoMatchState.resultA,
       resultB: bolaoMatchState.resultB,
+      offA: matchOfficialResult.teamA,
+      offB: matchOfficialResult.teamB,
+      offResA: matchOfficialResult.resultA,
+      offResB: matchOfficialResult.resultB,
     })
     .from(matches)
     .leftJoin(
       bolaoMatchState,
       sql`${bolaoMatchState.matchId} = ${matches.id} and ${bolaoMatchState.bolaoId} = ${bolaoId}`,
     )
+    .leftJoin(matchOfficialResult, eq(matchOfficialResult.matchId, matches.id))
     .where(eq(matches.id, matchId));
 
   if (!row) return { error: "Jogo não encontrado." } as const;
 
-  const teamA = row.stA ?? row.tplA;
-  const teamB = row.stB ?? row.tplB;
+  const teamA = row.stA ?? row.offA ?? row.tplA;
+  const teamB = row.stB ?? row.offB ?? row.tplB;
   if (!teamA || !teamB) return { error: "Times do jogo ainda não definidos." } as const;
-  if (row.resultA != null && row.resultB != null) {
-    return { error: "Resultado já publicado pelo admin." } as const;
+  const effResA = row.resultA ?? row.offResA;
+  const effResB = row.resultB ?? row.offResB;
+  if (effResA != null && effResB != null) {
+    return { error: "Resultado já publicado." } as const;
   }
   if (isPredictionLocked(row.kickoffAt)) {
     return { error: "Palpites bloqueados 24h antes do jogo." } as const;

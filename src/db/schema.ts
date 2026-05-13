@@ -54,11 +54,28 @@ export const matches = pgTable(
     teamB: text("team_b").references(() => teams.code),
     kickoffAt: timestamp("kickoff_at", { withTimezone: true }).notNull(),
     venue: text("venue"),
+    externalId: text("external_id").unique(),
   },
   (t) => [index("matches_stage_idx").on(t.stage), index("matches_kickoff_idx").on(t.kickoffAt)],
 );
 
-/* ─── Estado por bolão (resultado + override de times KO) ─── */
+/* ─── Resultado oficial sincronizado de fonte externa (cron).
+   Fallback global se não houver override em bolao_match_state. */
+export const matchOfficialResult = pgTable("match_official_result", {
+  matchId: text("match_id")
+    .primaryKey()
+    .references(() => matches.id, { onDelete: "cascade" }),
+  teamA: text("team_a").references(() => teams.code),
+  teamB: text("team_b").references(() => teams.code),
+  resultA: integer("result_a"),
+  resultB: integer("result_b"),
+  winner: winnerEnum("winner"),
+  status: text("status"),
+  source: text("source").notNull().default("football-data"),
+  fetchedAt: timestamp("fetched_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+/* ─── Estado por bolão (override do oficial) ─── */
 export const bolaoMatchState = pgTable(
   "bolao_match_state",
   {

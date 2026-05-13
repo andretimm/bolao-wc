@@ -1,6 +1,6 @@
 import { db } from "@/db";
-import { matches, bolaoMatchState } from "@/db/schema";
-import { asc, eq } from "drizzle-orm";
+import { matches, bolaoMatchState, matchOfficialResult } from "@/db/schema";
+import { asc } from "drizzle-orm";
 import { sql } from "drizzle-orm";
 
 export type EffectiveMatch = {
@@ -17,8 +17,9 @@ export type EffectiveMatch = {
   winner: "A" | "B" | null;
 };
 
-/** Carrega todos os jogos com estado per-bolão (team override + resultado).
-   Para grupo: teamA/teamB vêm de matches; para KO: vêm de state (fallback null). */
+/** Carrega todos jogos com estado efetivo.
+   Prioridade times: bolaoMatchState → matchOfficialResult → matches (template).
+   Prioridade resultado: bolaoMatchState → matchOfficialResult. */
 export async function getEffectiveMatches(bolaoId: string): Promise<EffectiveMatch[]> {
   const rows = await db
     .select({
@@ -32,15 +33,21 @@ export async function getEffectiveMatches(bolaoId: string): Promise<EffectiveMat
       tplB: matches.teamB,
       stA: bolaoMatchState.teamA,
       stB: bolaoMatchState.teamB,
-      resA: bolaoMatchState.resultA,
-      resB: bolaoMatchState.resultB,
-      winner: bolaoMatchState.winner,
+      stResA: bolaoMatchState.resultA,
+      stResB: bolaoMatchState.resultB,
+      stWinner: bolaoMatchState.winner,
+      offA: matchOfficialResult.teamA,
+      offB: matchOfficialResult.teamB,
+      offResA: matchOfficialResult.resultA,
+      offResB: matchOfficialResult.resultB,
+      offWinner: matchOfficialResult.winner,
     })
     .from(matches)
     .leftJoin(
       bolaoMatchState,
       sql`${bolaoMatchState.matchId} = ${matches.id} and ${bolaoMatchState.bolaoId} = ${bolaoId}`,
     )
+    .leftJoin(matchOfficialResult, sql`${matchOfficialResult.matchId} = ${matches.id}`)
     .orderBy(asc(matches.kickoffAt));
 
   return rows.map((r) => ({
@@ -50,11 +57,11 @@ export async function getEffectiveMatches(bolaoId: string): Promise<EffectiveMat
     groupId: r.groupId,
     kickoffAt: r.kickoffAt,
     venue: r.venue,
-    teamA: r.stA ?? r.tplA,
-    teamB: r.stB ?? r.tplB,
-    resultA: r.resA,
-    resultB: r.resB,
-    winner: r.winner,
+    teamA: r.stA ?? r.offA ?? r.tplA,
+    teamB: r.stB ?? r.offB ?? r.tplB,
+    resultA: r.stResA ?? r.offResA,
+    resultB: r.stResB ?? r.offResB,
+    winner: r.stWinner ?? r.offWinner,
   }));
 }
 

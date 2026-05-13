@@ -1,7 +1,7 @@
 import { requireAuth } from "@/lib/auth";
 import { requireBolaoAccess } from "@/lib/access";
 import { db } from "@/db";
-import { bolaoMatchState, memberships, predictions } from "@/db/schema";
+import { bolaoMatchState, matchOfficialResult, memberships, predictions } from "@/db/schema";
 import { and, eq, sql } from "drizzle-orm";
 import { getUsers } from "@/lib/clerk-users";
 import { colorFor } from "@/lib/colors";
@@ -13,33 +13,36 @@ export default async function RankingPage({ params }: { params: Promise<{ id: st
   const { id: bolaoId } = await params;
   await requireBolaoAccess({ userId, bolaoId });
 
-  // Aggregate per-user: exact / winners / misses / points
+  // Resultado efetivo = coalesce(bolaoMatchState, matchOfficialResult).
+  const rA = sql<number | null>`coalesce(${bolaoMatchState.resultA}, ${matchOfficialResult.resultA})`;
+  const rB = sql<number | null>`coalesce(${bolaoMatchState.resultB}, ${matchOfficialResult.resultB})`;
+
   const agg = await db
     .select({
       userId: memberships.userId,
       exact: sql<number>`
         coalesce(sum(case
-          when ${bolaoMatchState.resultA} is not null
-           and ${predictions.scoreA} = ${bolaoMatchState.resultA}
-           and ${predictions.scoreB} = ${bolaoMatchState.resultB} then 1 else 0 end), 0)::int`,
+          when ${rA} is not null
+           and ${predictions.scoreA} = ${rA}
+           and ${predictions.scoreB} = ${rB} then 1 else 0 end), 0)::int`,
       winners: sql<number>`
         coalesce(sum(case
-          when ${bolaoMatchState.resultA} is not null
-           and not (${predictions.scoreA} = ${bolaoMatchState.resultA} and ${predictions.scoreB} = ${bolaoMatchState.resultB})
-           and sign(${predictions.scoreA} - ${predictions.scoreB}) = sign(${bolaoMatchState.resultA} - ${bolaoMatchState.resultB})
+          when ${rA} is not null
+           and not (${predictions.scoreA} = ${rA} and ${predictions.scoreB} = ${rB})
+           and sign(${predictions.scoreA} - ${predictions.scoreB}) = sign(${rA} - ${rB})
           then 1 else 0 end), 0)::int`,
       misses: sql<number>`
         coalesce(sum(case
-          when ${bolaoMatchState.resultA} is not null
-           and not (${predictions.scoreA} = ${bolaoMatchState.resultA} and ${predictions.scoreB} = ${bolaoMatchState.resultB})
-           and sign(${predictions.scoreA} - ${predictions.scoreB}) <> sign(${bolaoMatchState.resultA} - ${bolaoMatchState.resultB})
+          when ${rA} is not null
+           and not (${predictions.scoreA} = ${rA} and ${predictions.scoreB} = ${rB})
+           and sign(${predictions.scoreA} - ${predictions.scoreB}) <> sign(${rA} - ${rB})
           then 1 else 0 end), 0)::int`,
       points: sql<number>`
         coalesce(sum(case
-          when ${bolaoMatchState.resultA} is not null then
+          when ${rA} is not null then
             case
-              when ${predictions.scoreA} = ${bolaoMatchState.resultA} and ${predictions.scoreB} = ${bolaoMatchState.resultB} then 10
-              when sign(${predictions.scoreA} - ${predictions.scoreB}) = sign(${bolaoMatchState.resultA} - ${bolaoMatchState.resultB}) then 5
+              when ${predictions.scoreA} = ${rA} and ${predictions.scoreB} = ${rB} then 10
+              when sign(${predictions.scoreA} - ${predictions.scoreB}) = sign(${rA} - ${rB}) then 5
               else 0
             end
           else 0 end), 0)::int`,
@@ -53,6 +56,7 @@ export default async function RankingPage({ params }: { params: Promise<{ id: st
       bolaoMatchState,
       and(eq(bolaoMatchState.bolaoId, memberships.bolaoId), eq(bolaoMatchState.matchId, predictions.matchId)),
     )
+    .leftJoin(matchOfficialResult, eq(matchOfficialResult.matchId, predictions.matchId))
     .where(eq(memberships.bolaoId, bolaoId))
     .groupBy(memberships.userId);
 

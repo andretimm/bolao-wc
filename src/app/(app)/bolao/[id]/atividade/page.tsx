@@ -1,8 +1,8 @@
 import { requireAuth } from "@/lib/auth";
 import { requireBolaoAccess } from "@/lib/access";
 import { db } from "@/db";
-import { bolaoMatchState, matches, memberships, teams } from "@/db/schema";
-import { desc, eq } from "drizzle-orm";
+import { bolaoMatchState, matches, matchOfficialResult, memberships, teams } from "@/db/schema";
+import { desc, eq, sql } from "drizzle-orm";
 import { getUsers } from "@/lib/clerk-users";
 import { colorFor } from "@/lib/colors";
 import { Flag, type TeamLite } from "@/components/flag";
@@ -34,20 +34,37 @@ export default async function AtividadePage({ params }: { params: Promise<{ id: 
   const [recentResults, recentJoins, allTeams] = await Promise.all([
     db
       .select({
-        matchId: bolaoMatchState.matchId,
-        updatedAt: bolaoMatchState.updatedAt,
-        resA: bolaoMatchState.resultA,
-        resB: bolaoMatchState.resultB,
-        stA: bolaoMatchState.teamA,
-        stB: bolaoMatchState.teamB,
+        matchId: matches.id,
+        round: matches.round,
         tplA: matches.teamA,
         tplB: matches.teamB,
-        round: matches.round,
+        stA: bolaoMatchState.teamA,
+        stB: bolaoMatchState.teamB,
+        stResA: bolaoMatchState.resultA,
+        stResB: bolaoMatchState.resultB,
+        stUpdatedAt: bolaoMatchState.updatedAt,
+        offA: matchOfficialResult.teamA,
+        offB: matchOfficialResult.teamB,
+        offResA: matchOfficialResult.resultA,
+        offResB: matchOfficialResult.resultB,
+        offFetchedAt: matchOfficialResult.fetchedAt,
+        at: sql<Date>`greatest(coalesce(${bolaoMatchState.updatedAt}, 'epoch'::timestamptz), coalesce(${matchOfficialResult.fetchedAt}, 'epoch'::timestamptz))`,
       })
-      .from(bolaoMatchState)
-      .innerJoin(matches, eq(matches.id, bolaoMatchState.matchId))
-      .where(eq(bolaoMatchState.bolaoId, bolaoId))
-      .orderBy(desc(bolaoMatchState.updatedAt))
+      .from(matches)
+      .leftJoin(
+        bolaoMatchState,
+        sql`${bolaoMatchState.matchId} = ${matches.id} and ${bolaoMatchState.bolaoId} = ${bolaoId}`,
+      )
+      .leftJoin(matchOfficialResult, eq(matchOfficialResult.matchId, matches.id))
+      .where(
+        sql`(${bolaoMatchState.resultA} is not null and ${bolaoMatchState.resultB} is not null)
+            or (${matchOfficialResult.resultA} is not null and ${matchOfficialResult.resultB} is not null)`,
+      )
+      .orderBy(
+        desc(
+          sql`greatest(coalesce(${bolaoMatchState.updatedAt}, 'epoch'::timestamptz), coalesce(${matchOfficialResult.fetchedAt}, 'epoch'::timestamptz))`,
+        ),
+      )
       .limit(30),
     db
       .select({ userId: memberships.userId, joinedAt: memberships.joinedAt })
@@ -62,15 +79,17 @@ export default async function AtividadePage({ params }: { params: Promise<{ id: 
 
   const items: FeedItem[] = [];
   for (const r of recentResults) {
-    if (r.resA == null || r.resB == null) continue;
+    const resA = r.stResA ?? r.offResA;
+    const resB = r.stResB ?? r.offResB;
+    if (resA == null || resB == null) continue;
     items.push({
       kind: "result",
-      at: r.updatedAt,
+      at: r.at as Date,
       matchId: r.matchId,
-      teamA: r.stA ?? r.tplA,
-      teamB: r.stB ?? r.tplB,
-      resultA: r.resA,
-      resultB: r.resB,
+      teamA: r.stA ?? r.offA ?? r.tplA,
+      teamB: r.stB ?? r.offB ?? r.tplB,
+      resultA: resA,
+      resultB: resB,
       round: r.round,
     });
   }

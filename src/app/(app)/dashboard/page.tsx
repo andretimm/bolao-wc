@@ -1,6 +1,6 @@
 import { requireCurrentUser } from "@/lib/auth";
 import { db } from "@/db";
-import { boloes, bolaoMatchState, matches, memberships, predictions } from "@/db/schema";
+import { boloes, bolaoMatchState, matches, matchOfficialResult, memberships, predictions } from "@/db/schema";
 import { and, asc, eq, gt, inArray, sql } from "drizzle-orm";
 import { DashboardActions } from "./ui";
 
@@ -34,14 +34,17 @@ export default async function DashboardPage() {
     : [];
   const countMap = new Map(counts.map((c) => [c.bolaoId, c.count]));
 
+  const rA = sql<number | null>`coalesce(${bolaoMatchState.resultA}, ${matchOfficialResult.resultA})`;
+  const rB = sql<number | null>`coalesce(${bolaoMatchState.resultB}, ${matchOfficialResult.resultB})`;
+
   const pointsRow = await db
     .select({
       total: sql<number>`
         coalesce(sum(case
-          when ${bolaoMatchState.resultA} is not null and ${bolaoMatchState.resultB} is not null then
+          when ${rA} is not null and ${rB} is not null then
             case
-              when ${predictions.scoreA} = ${bolaoMatchState.resultA} and ${predictions.scoreB} = ${bolaoMatchState.resultB} then 10
-              when sign(${predictions.scoreA} - ${predictions.scoreB}) = sign(${bolaoMatchState.resultA} - ${bolaoMatchState.resultB}) then 5
+              when ${predictions.scoreA} = ${rA} and ${predictions.scoreB} = ${rB} then 10
+              when sign(${predictions.scoreA} - ${predictions.scoreB}) = sign(${rA} - ${rB}) then 5
               else 0
             end
           else 0
@@ -53,6 +56,7 @@ export default async function DashboardPage() {
       bolaoMatchState,
       and(eq(bolaoMatchState.bolaoId, predictions.bolaoId), eq(bolaoMatchState.matchId, predictions.matchId)),
     )
+    .leftJoin(matchOfficialResult, eq(matchOfficialResult.matchId, predictions.matchId))
     .where(eq(predictions.userId, user.id));
 
   const totalPoints = pointsRow[0]?.total ?? 0;

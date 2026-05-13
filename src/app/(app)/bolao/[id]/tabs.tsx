@@ -9,6 +9,7 @@ export function BolaoTabs({ id, isAdmin }: { id: string; isAdmin: boolean }) {
   const tabs: { href: string; label: string }[] = [
     { href: `${base}/chaves`, label: "Chaves" },
     { href: `${base}/palpites`, label: "Palpites" },
+    { href: `${base}/todos`, label: "Todos" },
     ...(isAdmin ? [{ href: `${base}/admin`, label: "Admin" }] : []),
     { href: `${base}/ranking`, label: "Ranking" },
     { href: `${base}/atividade`, label: "Atividade" },

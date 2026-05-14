@@ -1,3 +1,5 @@
+import { FLAG_CODES } from "@/lib/flag-codes";
+
 export type TeamLite = {
   code: string;
   name: string;
@@ -18,6 +20,22 @@ export function Flag({ team, size = "md" }: { team: TeamLite | null | undefined;
       </span>
     );
   }
+
+  if (FLAG_CODES.has(team.code)) {
+    return (
+      <span className="flag" style={{ width: w, height: h }} title={team.name}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={`/flags/${team.code}.svg`}
+          alt={team.code}
+          width={w}
+          height={h}
+          style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+        />
+      </span>
+    );
+  }
+
   return (
     <span className="flag" style={{ width: w, height: h, fontSize: fs }} title={team.name}>
       <span className="stripes v">

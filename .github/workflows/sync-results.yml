@@ -18,5 +18,6 @@ jobs:
           curl -fsS -X POST \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
             -H "Content-Type: application/json" \
+            -H "X-Auth-Token: ${{ secrets.CRON_SECRET }}" \
             -w "\nHTTP %{http_code}\n" \
             "${{ secrets.SYNC_URL }}"

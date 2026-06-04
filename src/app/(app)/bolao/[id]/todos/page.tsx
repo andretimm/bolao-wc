@@ -8,6 +8,7 @@ import { getUsers } from "@/lib/clerk-users";
 import { colorFor } from "@/lib/colors";
 import { TeamLabel, type TeamLite } from "@/components/flag";
 import { championBonus } from "@/lib/scoring";
+import Image from "next/image";
 
 export const dynamic = "force-dynamic";
 
@@ -147,12 +148,31 @@ export default async function TodosPage({ params }: { params: Promise<{ id: stri
                         background: isMe ? "var(--accent-soft)" : undefined,
                       }}
                     >
-                      <span
-                        className="avatar"
-                        style={{ background: color, color: "#0a0a0b", borderColor: "transparent" }}
-                      >
-                        {init}
-                      </span>
+                      {u?.avatarUrl ? (
+                        <Image
+                          src={u.avatarUrl}
+                          alt={name}
+                          width={32}
+                          height={32}
+                          style={{
+                            width: 32,
+                            height: 32,
+                            borderRadius: "50%",
+                            objectFit: "cover",
+                          }}
+                        />
+                      ) : (
+                        <span
+                          className="avatar"
+                          style={{
+                            background: color,
+                            color: "#0a0a0b",
+                            borderColor: "transparent",
+                          }}
+                        >
+                          {init}
+                        </span>
+                      )}
                       <div style={{ fontSize: 13, fontWeight: 500 }}>
                         {name}
                         {isMe && (

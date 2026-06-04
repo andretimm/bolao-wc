@@ -6,25 +6,26 @@ import { desc, eq, sql } from "drizzle-orm";
 import { getUsers } from "@/lib/clerk-users";
 import { colorFor } from "@/lib/colors";
 import { Flag, type TeamLite } from "@/components/flag";
+import Image from "next/image";
 
 export const dynamic = "force-dynamic";
 
 type FeedItem =
   | {
-      kind: "result";
-      at: Date;
-      matchId: string;
-      teamA: string | null;
-      teamB: string | null;
-      resultA: number;
-      resultB: number;
-      round: string;
-    }
+    kind: "result";
+    at: Date;
+    matchId: string;
+    teamA: string | null;
+    teamB: string | null;
+    resultA: number;
+    resultB: number;
+    round: string;
+  }
   | {
-      kind: "join";
-      at: Date;
-      userId: string;
-    };
+    kind: "join";
+    at: Date;
+    userId: string;
+  };
 
 export default async function AtividadePage({ params }: { params: Promise<{ id: string }> }) {
   const { userId } = await requireAuth();
@@ -183,12 +184,31 @@ export default async function AtividadePage({ params }: { params: Promise<{ id: 
                 alignItems: "center",
               }}
             >
-              <span
-                className="avatar"
-                style={{ background: color, color: "#0a0a0b", borderColor: "transparent", width: 36, height: 36, fontSize: 12 }}
-              >
-                {init}
-              </span>
+              {u?.avatarUrl ? (
+                <Image
+                  src={u.avatarUrl}
+                  alt={name}
+                  width={32}
+                  height={32}
+                  style={{
+                    width: 32,
+                    height: 32,
+                    borderRadius: "50%",
+                    objectFit: "cover",
+                  }}
+                />
+              ) : (
+                <span
+                  className="avatar"
+                  style={{
+                    background: color,
+                    color: "#0a0a0b",
+                    borderColor: "transparent",
+                  }}
+                >
+                  {init}
+                </span>
+              )}
               <div style={{ fontSize: 13 }}>
                 <b>{name}</b> entrou no bolão.
               </div>

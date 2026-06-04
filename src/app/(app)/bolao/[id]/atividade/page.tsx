@@ -6,6 +6,7 @@ import { desc, eq, sql } from "drizzle-orm";
 import { getUsers } from "@/lib/clerk-users";
 import { colorFor } from "@/lib/colors";
 import { Flag, type TeamLite } from "@/components/flag";
+import Image from "next/image";
 
 export const dynamic = "force-dynamic";
 
@@ -184,7 +185,7 @@ export default async function AtividadePage({ params }: { params: Promise<{ id: 
               }}
             >
               {u?.avatarUrl ? (
-                <img
+                <Image
                   src={u.avatarUrl}
                   alt={name}
                   width={32}

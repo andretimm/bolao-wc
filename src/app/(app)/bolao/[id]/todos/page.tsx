@@ -8,6 +8,7 @@ import { getUsers } from "@/lib/clerk-users";
 import { colorFor } from "@/lib/colors";
 import { TeamLabel, type TeamLite } from "@/components/flag";
 import { championBonus } from "@/lib/scoring";
+import Image from "next/image";
 
 export const dynamic = "force-dynamic";
 
@@ -148,7 +149,7 @@ export default async function TodosPage({ params }: { params: Promise<{ id: stri
                       }}
                     >
                       {u?.avatarUrl ? (
-                        <img
+                        <Image
                           src={u.avatarUrl}
                           alt={name}
                           width={32}

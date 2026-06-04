@@ -5,6 +5,7 @@ import { bolaoMatchState, matches, matchOfficialResult, memberships, predictions
 import { and, eq, sql } from "drizzle-orm";
 import { getUsers } from "@/lib/clerk-users";
 import { colorFor } from "@/lib/colors";
+import Image from "next/image"
 
 export const dynamic = "force-dynamic";
 
@@ -119,7 +120,7 @@ export default async function RankingPage({ params }: { params: Promise<{ id: st
                   #{place}
                 </span>
                 {u?.avatarUrl ? (
-                  <img
+                  <Image
                     src={u.avatarUrl}
                     alt={name}
                     width={32}

@@ -118,12 +118,31 @@ export default async function RankingPage({ params }: { params: Promise<{ id: st
                 >
                   #{place}
                 </span>
-                <span
-                  className="avatar lg"
-                  style={{ background: color, color: "#0a0a0b", borderColor: "transparent" }}
-                >
-                  {init}
-                </span>
+                {u?.avatarUrl ? (
+                  <img
+                    src={u.avatarUrl}
+                    alt={name}
+                    width={32}
+                    height={32}
+                    style={{
+                      width: 32,
+                      height: 32,
+                      borderRadius: "50%",
+                      objectFit: "cover",
+                    }}
+                  />
+                ) : (
+                  <span
+                    className="avatar"
+                    style={{
+                      background: color,
+                      color: "#0a0a0b",
+                      borderColor: "transparent",
+                    }}
+                  >
+                    {init}
+                  </span>
+                )}
                 <div style={{ fontWeight: 600, fontSize: 14, textAlign: "center" }}>{name}</div>
                 <div className="mono" style={{ fontSize: 22, fontWeight: 700, color: "var(--accent)" }}>
                   {r.points}

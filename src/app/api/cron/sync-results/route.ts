@@ -36,6 +36,7 @@ async function handle(req: Request) {
 
   // Pré-carrega matches locais p/ mapeamento (id externo OU data+times).
   const localMatches = await db.select().from(matches);
+  const localById = new Map(localMatches.map((m) => [m.id, m]));
   const byExternal = new Map<string, string>();
   const byDateTla = new Map<string, string>();
   for (const m of localMatches) {
@@ -97,13 +98,22 @@ async function handle(req: Request) {
       }
     }
 
+    // Palpites usam a orientação teamA/teamB do match local; football-data
+    // pode listar o mesmo jogo com mandante invertido. Reorienta antes de gravar.
+    const local = localById.get(localId);
+    const swapped =
+      !!local?.teamA &&
+      !!local?.teamB &&
+      local.teamA === awayCode &&
+      local.teamB === homeCode;
+
     const values = {
       matchId: localId,
-      teamA: homeCode,
-      teamB: awayCode,
-      resultA: finished ? home : null,
-      resultB: finished ? away : null,
-      winner,
+      teamA: swapped ? awayCode : homeCode,
+      teamB: swapped ? homeCode : awayCode,
+      resultA: finished ? (swapped ? away : home) : null,
+      resultB: finished ? (swapped ? home : away) : null,
+      winner: swapped && winner ? (winner === "A" ? "B" : "A") : winner,
       status: fd.status,
       source: "football-data",
       fetchedAt: new Date(),

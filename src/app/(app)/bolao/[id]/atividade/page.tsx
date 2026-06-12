@@ -49,7 +49,7 @@ export default async function AtividadePage({ params }: { params: Promise<{ id: 
         offResA: matchOfficialResult.resultA,
         offResB: matchOfficialResult.resultB,
         offFetchedAt: matchOfficialResult.fetchedAt,
-        at: sql<Date>`greatest(coalesce(${bolaoMatchState.updatedAt}, 'epoch'::timestamptz), coalesce(${matchOfficialResult.fetchedAt}, 'epoch'::timestamptz))`,
+        at: sql`greatest(coalesce(${bolaoMatchState.updatedAt}, 'epoch'::timestamptz), coalesce(${matchOfficialResult.fetchedAt}, 'epoch'::timestamptz))`.mapWith((v: string) => new Date(v)),
       })
       .from(matches)
       .leftJoin(
@@ -85,7 +85,7 @@ export default async function AtividadePage({ params }: { params: Promise<{ id: 
     if (resA == null || resB == null) continue;
     items.push({
       kind: "result",
-      at: r.at as Date,
+      at: r.at,
       matchId: r.matchId,
       teamA: r.stA ?? r.offA ?? r.tplA,
       teamB: r.stB ?? r.offB ?? r.tplB,

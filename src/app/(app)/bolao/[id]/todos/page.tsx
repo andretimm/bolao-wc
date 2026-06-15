@@ -62,7 +62,7 @@ export default async function TodosPage({ params }: { params: Promise<{ id: stri
         Palpites de todos
       </h2>
       <p className="page-sub" style={{ marginTop: 0, marginBottom: 18 }}>
-        Veja o palpite de cada membro e quando foi feito. Sempre visível.
+        Veja o palpite de cada membro e quando foi feito. Jogos com resultado vêm recolhidos — clique para expandir.
       </p>
 
       {ready.length === 0 && <div className="empty">Nenhum jogo com times definidos ainda.</div>}
@@ -74,41 +74,44 @@ export default async function TodosPage({ params }: { params: Promise<{ id: stri
           const isFinal = m.stage === "final";
 
           return (
-            <div key={m.id} className="card">
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "1fr auto 1fr",
-                  alignItems: "center",
-                  gap: 12,
-                  padding: "12px 16px",
-                  borderBottom: "1px solid var(--border)",
-                }}
-              >
-                <TeamLabel team={m.teamA ? teamMap.get(m.teamA) ?? null : null} />
-                <div className="mono" style={{ fontSize: 14, fontWeight: 700, textAlign: "center" }}>
-                  {hasResult ? `${m.resultA} × ${m.resultB}` : "vs"}
+            <details key={m.id} className="card" open={!hasResult}>
+              <summary>
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "1fr auto 1fr auto",
+                    alignItems: "center",
+                    gap: 12,
+                    padding: "12px 16px",
+                    borderBottom: "1px solid var(--border)",
+                  }}
+                >
+                  <TeamLabel team={m.teamA ? teamMap.get(m.teamA) ?? null : null} />
+                  <div className="mono" style={{ fontSize: 14, fontWeight: 700, textAlign: "center" }}>
+                    {hasResult ? `${m.resultA} × ${m.resultB}` : "vs"}
+                  </div>
+                  <TeamLabel team={m.teamB ? teamMap.get(m.teamB) ?? null : null} align="right" />
+                  <span className="details-chevron">▾</span>
                 </div>
-                <TeamLabel team={m.teamB ? teamMap.get(m.teamB) ?? null : null} align="right" />
-              </div>
-              <div
-                className="mono"
-                style={{
-                  fontSize: 10,
-                  color: "var(--text-3)",
-                  letterSpacing: "0.06em",
-                  padding: "6px 16px",
-                  borderBottom: "1px solid var(--border)",
-                }}
-              >
-                {m.round.toUpperCase()} · {m.kickoffAt.toLocaleString("pt-BR", {
-                  day: "2-digit",
-                  month: "short",
-                  hour: "2-digit",
-                  minute: "2-digit",
-                })}
-                {isFinal && <span style={{ color: "var(--accent)" }}> · CAMPEÃO +50</span>}
-              </div>
+                <div
+                  className="mono"
+                  style={{
+                    fontSize: 10,
+                    color: "var(--text-3)",
+                    letterSpacing: "0.06em",
+                    padding: "6px 16px",
+                    borderBottom: "1px solid var(--border)",
+                  }}
+                >
+                  {m.round.toUpperCase()} · {m.kickoffAt.toLocaleString("pt-BR", {
+                    day: "2-digit",
+                    month: "short",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
+                  {isFinal && <span style={{ color: "var(--accent)" }}> · CAMPEÃO +50</span>}
+                </div>
+              </summary>
 
               <div>
                 {members.map((mem) => {
@@ -228,7 +231,7 @@ export default async function TodosPage({ params }: { params: Promise<{ id: stri
                   );
                 })}
               </div>
-            </div>
+            </details>
           );
         })}
       </div>

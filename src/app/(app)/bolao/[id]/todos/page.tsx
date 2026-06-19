@@ -8,7 +8,8 @@ import { getUsers } from "@/lib/clerk-users";
 import { colorFor } from "@/lib/colors";
 import type { TeamLite } from "@/components/flag";
 import { championBonus } from "@/lib/scoring";
-import { MatchCard, type MatchCardItem } from "./card";
+import type { MatchCardItem } from "./card";
+import { TodosList } from "./list";
 
 export const dynamic = "force-dynamic";
 
@@ -116,6 +117,8 @@ export default async function TodosPage({ params }: { params: Promise<{ id: stri
     };
   });
 
+  const rounds = Array.from(new Set(items.map((i) => i.round)));
+
   return (
     <div>
       <h2 style={{ margin: "0 0 14px", fontSize: 18, letterSpacing: "-0.015em" }}>
@@ -125,13 +128,11 @@ export default async function TodosPage({ params }: { params: Promise<{ id: stri
         Veja o palpite de cada membro e quando foi feito. Jogos com resultado vêm recolhidos — clique para expandir.
       </p>
 
-      {items.length === 0 && <div className="empty">Nenhum jogo com times definidos ainda.</div>}
-
-      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-        {items.map((item) => (
-          <MatchCard key={item.matchId} {...item} />
-        ))}
-      </div>
+      {items.length === 0 ? (
+        <div className="empty">Nenhum jogo com times definidos ainda.</div>
+      ) : (
+        <TodosList items={items} rounds={rounds} />
+      )}
     </div>
   );
 }

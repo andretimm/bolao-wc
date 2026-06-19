@@ -6,9 +6,9 @@ import { eq } from "drizzle-orm";
 import { getEffectiveMatches, pointsForPrediction } from "@/lib/match-state";
 import { getUsers } from "@/lib/clerk-users";
 import { colorFor } from "@/lib/colors";
-import { TeamLabel, type TeamLite } from "@/components/flag";
+import type { TeamLite } from "@/components/flag";
 import { championBonus } from "@/lib/scoring";
-import Image from "next/image";
+import { MatchCard, type MatchCardItem } from "./card";
 
 export const dynamic = "force-dynamic";
 
@@ -56,6 +56,66 @@ export default async function TodosPage({ params }: { params: Promise<{ id: stri
 
   const ready = effective.filter((m) => m.teamA && m.teamB);
 
+  const items: MatchCardItem[] = ready.map((m) => {
+    const hasResult = m.resultA != null && m.resultB != null;
+    const predsForMatch = predByMatch.get(m.id) ?? new Map();
+    const isFinal = m.stage === "final";
+
+    return {
+      matchId: m.id,
+      round: m.round,
+      kickoffLabel: m.kickoffAt.toLocaleString("pt-BR", {
+        day: "2-digit",
+        month: "short",
+        hour: "2-digit",
+        minute: "2-digit",
+      }),
+      teamA: m.teamA ? teamMap.get(m.teamA) ?? null : null,
+      teamB: m.teamB ? teamMap.get(m.teamB) ?? null : null,
+      resultA: m.resultA,
+      resultB: m.resultB,
+      hasResult,
+      isFinal,
+      members: members.map((mem) => {
+        const u = userMap.get(mem.userId);
+        const name = u?.name ?? mem.userId.slice(0, 6);
+        const color = u?.color ?? colorFor(mem.userId);
+        const init = name
+          .split(" ")
+          .slice(0, 2)
+          .map((s) => s[0])
+          .join("")
+          .toUpperCase();
+        const pred = predsForMatch.get(mem.userId);
+        const isMe = mem.userId === userId;
+
+        const earned = pred
+          ? pointsForPrediction(
+              { scoreA: pred.scoreA, scoreB: pred.scoreB },
+              { resultA: m.resultA, resultB: m.resultB },
+            )
+          : 0;
+        const champ = pred
+          ? championBonus(pred, { resultA: m.resultA, resultB: m.resultB })
+          : 0;
+        const total = earned + (isFinal ? champ : 0);
+
+        return {
+          userId: mem.userId,
+          name,
+          init,
+          color,
+          avatarUrl: u?.avatarUrl ?? null,
+          isMe,
+          predLabel: pred ? `${pred.scoreA} × ${pred.scoreB}` : "— × —",
+          hasPred: !!pred,
+          relativeLabel: pred ? relativeTime(pred.updatedAt, now) : "—",
+          total,
+        };
+      }),
+    };
+  });
+
   return (
     <div>
       <h2 style={{ margin: "0 0 14px", fontSize: 18, letterSpacing: "-0.015em" }}>
@@ -65,175 +125,12 @@ export default async function TodosPage({ params }: { params: Promise<{ id: stri
         Veja o palpite de cada membro e quando foi feito. Jogos com resultado vêm recolhidos — clique para expandir.
       </p>
 
-      {ready.length === 0 && <div className="empty">Nenhum jogo com times definidos ainda.</div>}
+      {items.length === 0 && <div className="empty">Nenhum jogo com times definidos ainda.</div>}
 
       <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-        {ready.map((m) => {
-          const hasResult = m.resultA != null && m.resultB != null;
-          const predsForMatch = predByMatch.get(m.id) ?? new Map();
-          const isFinal = m.stage === "final";
-
-          return (
-            <details key={m.id} className="card" open={!hasResult}>
-              <summary>
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "1fr auto 1fr auto",
-                    alignItems: "center",
-                    gap: 12,
-                    padding: "12px 16px",
-                    borderBottom: "1px solid var(--border)",
-                  }}
-                >
-                  <TeamLabel team={m.teamA ? teamMap.get(m.teamA) ?? null : null} />
-                  <div className="mono" style={{ fontSize: 14, fontWeight: 700, textAlign: "center" }}>
-                    {hasResult ? `${m.resultA} × ${m.resultB}` : "vs"}
-                  </div>
-                  <TeamLabel team={m.teamB ? teamMap.get(m.teamB) ?? null : null} align="right" />
-                  <span className="details-chevron">▾</span>
-                </div>
-                <div
-                  className="mono"
-                  style={{
-                    fontSize: 10,
-                    color: "var(--text-3)",
-                    letterSpacing: "0.06em",
-                    padding: "6px 16px",
-                    borderBottom: "1px solid var(--border)",
-                  }}
-                >
-                  {m.round.toUpperCase()} · {m.kickoffAt.toLocaleString("pt-BR", {
-                    day: "2-digit",
-                    month: "short",
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}
-                  {isFinal && <span style={{ color: "var(--accent)" }}> · CAMPEÃO +50</span>}
-                </div>
-              </summary>
-
-              <div>
-                {members.map((mem) => {
-                  const u = userMap.get(mem.userId);
-                  const name = u?.name ?? mem.userId.slice(0, 6);
-                  const color = u?.color ?? colorFor(mem.userId);
-                  const init = name
-                    .split(" ")
-                    .slice(0, 2)
-                    .map((s) => s[0])
-                    .join("")
-                    .toUpperCase();
-                  const pred = predsForMatch.get(mem.userId);
-                  const isMe = mem.userId === userId;
-
-                  const earned = pred
-                    ? pointsForPrediction(
-                        { scoreA: pred.scoreA, scoreB: pred.scoreB },
-                        { resultA: m.resultA, resultB: m.resultB },
-                      )
-                    : 0;
-                  const champ = pred
-                    ? championBonus(pred, { resultA: m.resultA, resultB: m.resultB })
-                    : 0;
-                  const total = earned + (isFinal ? champ : 0);
-
-                  return (
-                    <div
-                      key={mem.userId}
-                      style={{
-                        display: "grid",
-                        gridTemplateColumns: "32px 1fr auto auto",
-                        gap: 12,
-                        padding: "10px 16px",
-                        borderBottom: "1px solid var(--border)",
-                        alignItems: "center",
-                        background: isMe ? "var(--accent-soft)" : undefined,
-                      }}
-                    >
-                      {u?.avatarUrl ? (
-                        <Image
-                          src={u.avatarUrl}
-                          alt={name}
-                          width={32}
-                          height={32}
-                          style={{
-                            width: 32,
-                            height: 32,
-                            borderRadius: "50%",
-                            objectFit: "cover",
-                          }}
-                        />
-                      ) : (
-                        <span
-                          className="avatar"
-                          style={{
-                            background: color,
-                            color: "#0a0a0b",
-                            borderColor: "transparent",
-                          }}
-                        >
-                          {init}
-                        </span>
-                      )}
-                      <div style={{ fontSize: 13, fontWeight: 500 }}>
-                        {name}
-                        {isMe && (
-                          <span
-                            className="mono"
-                            style={{
-                              marginLeft: 8,
-                              fontSize: 10,
-                              color: "var(--accent)",
-                              letterSpacing: "0.08em",
-                            }}
-                          >
-                            VOCÊ
-                          </span>
-                        )}
-                      </div>
-                      <div
-                        className="mono"
-                        style={{
-                          fontSize: 13,
-                          fontWeight: 700,
-                          color: pred ? "var(--text)" : "var(--text-3)",
-                          minWidth: 60,
-                          textAlign: "center",
-                        }}
-                      >
-                        {pred ? `${pred.scoreA} × ${pred.scoreB}` : "— × —"}
-                      </div>
-                      <div
-                        className="mono"
-                        style={{
-                          fontSize: 10,
-                          color: "var(--text-3)",
-                          letterSpacing: "0.04em",
-                          minWidth: 110,
-                          textAlign: "right",
-                        }}
-                      >
-                        {pred ? relativeTime(pred.updatedAt, now) : "—"}
-                        {hasResult && pred && (
-                          <div
-                            style={{
-                              color: total > 0 ? "var(--accent)" : "var(--text-3)",
-                              fontWeight: 700,
-                              marginTop: 2,
-                            }}
-                          >
-                            +{total} pts
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </details>
-          );
-        })}
+        {items.map((item) => (
+          <MatchCard key={item.matchId} {...item} />
+        ))}
       </div>
     </div>
   );

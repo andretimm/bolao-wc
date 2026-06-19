@@ -28,7 +28,6 @@ export type MatchCardItem = {
 };
 
 export function MatchCard({
-  matchId,
   round,
   kickoffLabel,
   teamA,
@@ -40,7 +39,7 @@ export function MatchCard({
   members,
 }: MatchCardItem) {
   return (
-    <details key={matchId} className="card" open={!hasResult}>
+    <details className="card" open={!hasResult}>
       <summary>
         <div
           style={{

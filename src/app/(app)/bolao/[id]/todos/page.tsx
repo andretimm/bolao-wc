@@ -10,6 +10,7 @@ import type { TeamLite } from "@/components/flag";
 import { championBonus } from "@/lib/scoring";
 import type { MatchCardItem } from "./card";
 import { TodosList } from "./list";
+import { roundFilterKey } from "@/lib/round";
 
 export const dynamic = "force-dynamic";
 
@@ -65,6 +66,7 @@ export default async function TodosPage({ params }: { params: Promise<{ id: stri
     return {
       matchId: m.id,
       round: m.round,
+      roundKey: roundFilterKey(m.round),
       kickoffLabel: m.kickoffAt.toLocaleString("pt-BR", {
         day: "2-digit",
         month: "short",
@@ -117,7 +119,7 @@ export default async function TodosPage({ params }: { params: Promise<{ id: stri
     };
   });
 
-  const rounds = Array.from(new Set(items.map((i) => i.round)));
+  const rounds = Array.from(new Set(items.map((i) => i.roundKey)));
 
   return (
     <div>

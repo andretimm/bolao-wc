@@ -7,6 +7,7 @@ import { getEffectiveMatches, pointsForPrediction } from "@/lib/match-state";
 import type { TeamLite } from "@/components/flag";
 import { PalpitesList } from "./list";
 import { isPredictionLocked } from "@/lib/prediction-lock";
+import { roundFilterKey } from "@/lib/round";
 
 export const dynamic = "force-dynamic";
 
@@ -45,6 +46,7 @@ export default async function PalpitesPage({ params }: { params: Promise<{ id: s
       teamB: m.teamB ? teamMap.get(m.teamB) ?? null : null,
       kickoffAt: m.kickoffAt.toISOString(),
       round: m.round,
+      roundKey: roundFilterKey(m.round),
       locked,
       hasResult,
       resultA: m.resultA,
@@ -56,7 +58,7 @@ export default async function PalpitesPage({ params }: { params: Promise<{ id: s
     };
   });
 
-  const rounds = Array.from(new Set(items.map((i) => i.round)));
+  const rounds = Array.from(new Set(items.map((i) => i.roundKey)));
 
   return (
     <div>

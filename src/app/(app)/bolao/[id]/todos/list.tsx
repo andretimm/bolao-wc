@@ -13,7 +13,7 @@ export function TodosList({
 }) {
   const [selectedRound, setSelectedRound] = useState("all");
   const filtered =
-    selectedRound === "all" ? items : items.filter((i) => i.round === selectedRound);
+    selectedRound === "all" ? items : items.filter((i) => i.roundKey === selectedRound);
 
   return (
     <>

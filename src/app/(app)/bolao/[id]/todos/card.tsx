@@ -17,6 +17,7 @@ export type MatchCardMember = {
 export type MatchCardItem = {
   matchId: string;
   round: string;
+  roundKey: string;
   kickoffLabel: string;
   teamA: TeamLite | null;
   teamB: TeamLite | null;

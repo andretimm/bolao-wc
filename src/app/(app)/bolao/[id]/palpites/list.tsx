@@ -11,6 +11,7 @@ export type PalpitesItem = {
   teamB: TeamLite | null;
   kickoffAt: string;
   round: string;
+  roundKey: string;
   locked: boolean;
   hasResult: boolean;
   resultA: number | null;
@@ -32,7 +33,7 @@ export function PalpitesList({
 }) {
   const [selectedRound, setSelectedRound] = useState("all");
   const filtered =
-    selectedRound === "all" ? items : items.filter((i) => i.round === selectedRound);
+    selectedRound === "all" ? items : items.filter((i) => i.roundKey === selectedRound);
 
   return (
     <>

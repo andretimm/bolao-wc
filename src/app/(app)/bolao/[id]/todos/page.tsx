@@ -68,6 +68,7 @@ export default async function TodosPage({ params }: { params: Promise<{ id: stri
       round: m.round,
       roundKey: roundFilterKey(m.round),
       kickoffLabel: m.kickoffAt.toLocaleString("pt-BR", {
+        timeZone: "America/Sao_Paulo",
         day: "2-digit",
         month: "short",
         hour: "2-digit",

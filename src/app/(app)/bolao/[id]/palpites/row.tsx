@@ -50,9 +50,17 @@ export function PredictionRow(props: {
 
   const date = new Date(props.kickoffAt);
   const dateStr =
-    date.toLocaleDateString("pt-BR", { day: "2-digit", month: "short" }) +
+    date.toLocaleDateString("pt-BR", {
+      timeZone: "America/Sao_Paulo",
+      day: "2-digit",
+      month: "short",
+    }) +
     " · " +
-    date.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+    date.toLocaleTimeString("pt-BR", {
+      timeZone: "America/Sao_Paulo",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
 
   return (
     <div className="palpite-row">

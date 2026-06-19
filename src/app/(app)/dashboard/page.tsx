@@ -180,6 +180,7 @@ export default async function DashboardPage() {
             <div style={{ fontWeight: 600 }}>{m.teamA ?? "—"}</div>
             <div className="mono" style={{ fontSize: 12, color: "var(--text-3)" }}>
               {new Date(m.kickoffAt).toLocaleString("pt-BR", {
+                timeZone: "America/Sao_Paulo",
                 day: "2-digit",
                 month: "short",
                 hour: "2-digit",

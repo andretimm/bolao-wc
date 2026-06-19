@@ -5,7 +5,7 @@ import { predictions, teams } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
 import { getEffectiveMatches, pointsForPrediction } from "@/lib/match-state";
 import type { TeamLite } from "@/components/flag";
-import { PredictionRow } from "./row";
+import { PalpitesList } from "./list";
 import { isPredictionLocked } from "@/lib/prediction-lock";
 
 export const dynamic = "force-dynamic";
@@ -30,6 +30,34 @@ export default async function PalpitesPage({ params }: { params: Promise<{ id: s
 
   const ready = effective.filter((m) => m.teamA && m.teamB);
 
+  const items = ready.map((m) => {
+    const pred = predMap.get(m.id);
+    const hasResult = m.resultA != null && m.resultB != null;
+    const locked = hasResult || isPredictionLocked(m.kickoffAt, now);
+    const earned = pointsForPrediction(
+      pred ? { scoreA: pred.scoreA, scoreB: pred.scoreB } : null,
+      { resultA: m.resultA, resultB: m.resultB },
+    );
+
+    return {
+      matchId: m.id,
+      teamA: m.teamA ? teamMap.get(m.teamA) ?? null : null,
+      teamB: m.teamB ? teamMap.get(m.teamB) ?? null : null,
+      kickoffAt: m.kickoffAt.toISOString(),
+      round: m.round,
+      locked,
+      hasResult,
+      resultA: m.resultA,
+      resultB: m.resultB,
+      initialScoreA: pred?.scoreA ?? null,
+      initialScoreB: pred?.scoreB ?? null,
+      earned,
+      isFinal: m.stage === "final",
+    };
+  });
+
+  const rounds = Array.from(new Set(items.map((i) => i.round)));
+
   return (
     <div>
       <h2 style={{ margin: "0 0 14px", fontSize: 18, letterSpacing: "-0.015em" }}>Seus palpites</h2>
@@ -41,38 +69,13 @@ export default async function PalpitesPage({ params }: { params: Promise<{ id: s
         <b style={{ color: "var(--accent)" }}>+50 pts extras</b>. Empate não permitido na final.
       </p>
 
-      <div className="card">
-        {ready.length === 0 && <div className="empty">Nenhum jogo com times definidos ainda.</div>}
-        {ready.map((m) => {
-          const pred = predMap.get(m.id);
-          const hasResult = m.resultA != null && m.resultB != null;
-          const locked = hasResult || isPredictionLocked(m.kickoffAt, now);
-          const earned = pointsForPrediction(
-            pred ? { scoreA: pred.scoreA, scoreB: pred.scoreB } : null,
-            { resultA: m.resultA, resultB: m.resultB },
-          );
-
-          return (
-            <PredictionRow
-              key={m.id}
-              bolaoId={bolaoId}
-              matchId={m.id}
-              teamA={m.teamA ? teamMap.get(m.teamA) ?? null : null}
-              teamB={m.teamB ? teamMap.get(m.teamB) ?? null : null}
-              kickoffAt={m.kickoffAt.toISOString()}
-              round={m.round}
-              locked={locked}
-              hasResult={hasResult}
-              resultA={m.resultA}
-              resultB={m.resultB}
-              initialScoreA={pred?.scoreA ?? null}
-              initialScoreB={pred?.scoreB ?? null}
-              earned={earned}
-              isFinal={m.stage === "final"}
-            />
-          );
-        })}
-      </div>
+      {items.length === 0 ? (
+        <div className="card">
+          <div className="empty">Nenhum jogo com times definidos ainda.</div>
+        </div>
+      ) : (
+        <PalpitesList bolaoId={bolaoId} items={items} rounds={rounds} />
+      )}
     </div>
   );
 }

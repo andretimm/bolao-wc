@@ -5,8 +5,8 @@ import { requireAuth } from "@/lib/auth";
 import { requireBolaoAccess } from "@/lib/access";
 import { db } from "@/db";
 import { bolaoMatchState, matches, teams } from "@/db/schema";
-import { and, eq, sql } from "drizzle-orm";
-import { nextSlots } from "@/lib/bracket";
+import { eq } from "drizzle-orm";
+import { propagateBracket } from "@/lib/propagate-bracket";
 
 type StatePatch = Partial<{
   teamA: string | null;
@@ -24,43 +24,6 @@ async function upsertState(bolaoId: string, matchId: string, patch: StatePatch) 
       target: [bolaoMatchState.bolaoId, bolaoMatchState.matchId],
       set: { ...patch, updatedAt: new Date() },
     });
-}
-
-/** Get effective teamA/teamB for a match in this bolão (state override → template). */
-async function effectiveTeams(bolaoId: string, matchId: string) {
-  const [row] = await db
-    .select({
-      tplA: matches.teamA,
-      tplB: matches.teamB,
-      stA: bolaoMatchState.teamA,
-      stB: bolaoMatchState.teamB,
-    })
-    .from(matches)
-    .leftJoin(
-      bolaoMatchState,
-      sql`${bolaoMatchState.matchId} = ${matches.id} and ${bolaoMatchState.bolaoId} = ${bolaoId}`,
-    )
-    .where(eq(matches.id, matchId));
-  if (!row) return null;
-  return { teamA: row.stA ?? row.tplA, teamB: row.stB ?? row.tplB };
-}
-
-async function propagateBracket(
-  bolaoId: string,
-  matchId: string,
-  winnerTeam: string,
-  loserTeam: string,
-) {
-  const { winnerTo, loserTo } = nextSlots(matchId);
-
-  if (winnerTo) {
-    const patch: StatePatch = winnerTo.slot === "A" ? { teamA: winnerTeam } : { teamB: winnerTeam };
-    await upsertState(bolaoId, winnerTo.matchId, patch);
-  }
-  if (loserTo) {
-    const patch: StatePatch = loserTo.slot === "A" ? { teamA: loserTeam } : { teamB: loserTeam };
-    await upsertState(bolaoId, loserTo.matchId, patch);
-  }
 }
 
 export async function saveMatch(formData: FormData) {
@@ -116,15 +79,8 @@ export async function saveMatch(formData: FormData) {
 
   await upsertState(bolaoId, matchId, { ...teamPatch, resultA: a, resultB: b, winner });
 
-  // Propagation (KO only, requires both teams known)
-  if (isKO && winner) {
-    const eff = await effectiveTeams(bolaoId, matchId);
-    if (eff?.teamA && eff?.teamB) {
-      const winnerTeam = winner === "A" ? eff.teamA : eff.teamB;
-      const loserTeam = winner === "A" ? eff.teamB : eff.teamA;
-      await propagateBracket(bolaoId, matchId, winnerTeam, loserTeam);
-    }
-  }
+  // Propagate bracket (group standings → r32, KO results → next match)
+  await propagateBracket(bolaoId);
 
   revalidatePath(`/bolao/${bolaoId}`, "layout");
   return { ok: true } as const;

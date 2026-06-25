@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
-import { matches, matchOfficialResult } from "@/db/schema";
+import { matches, matchOfficialResult, boloes } from "@/db/schema";
+import { propagateBracket } from "@/lib/propagate-bracket";
 import { eq } from "drizzle-orm";
 import { fetchWcMatches, type FdMatch } from "@/lib/football-data";
 import { codeFromTla } from "@/lib/external-teams";
@@ -33,6 +34,8 @@ async function handle(req: Request) {
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 502 });
   }
+
+  const allBoloes = await db.select({ id: boloes.id }).from(boloes);
 
   // Pré-carrega matches locais p/ mapeamento (id externo OU data+times).
   const localMatches = await db.select().from(matches);
@@ -137,6 +140,9 @@ async function handle(req: Request) {
       });
     upserts++;
   }
+
+  // Propagate bracket for every bolão now that official results are updated
+  await Promise.all(allBoloes.map((b) => propagateBracket(b.id)));
 
   return NextResponse.json({
     ok: true,

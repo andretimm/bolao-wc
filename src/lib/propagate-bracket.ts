@@ -51,8 +51,8 @@ export async function propagateBracket(bolaoId: string): Promise<void> {
 
     // Write `newTeam` into `slot` of `matchId` only when safe:
     //   - current value is null (empty → write)
-    //   - current value equals newTeam (idempotent → skip DB write)
-    //   - current value was auto-filled from this source (stale → overwrite)
+    //   - current value equals newTeam (idempotent → skip)
+    //   - current value was auto-filled from this source (stale → overwrite or clear)
     // Skips when current value is a manual admin override (not a candidate from `src`).
     async function conditionalUpsert(
       matchId: string,
@@ -64,7 +64,7 @@ export async function propagateBracket(bolaoId: string): Promise<void> {
       const currentTeam = slot === "A" ? (current?.teamA ?? null) : (current?.teamB ?? null);
       if (currentTeam === newTeam) return; // already correct (or both null)
       if (currentTeam != null && !isAutoFillCandidate(currentTeam, src)) return; // manual override — preserve
-      if (newTeam == null && currentTeam == null) return; // nothing to do
+      if (newTeam == null && currentTeam == null) return; // unreachable but defensive
       const patch: Record<string, unknown> = slot === "A" ? { teamA: newTeam } : { teamB: newTeam };
       await db
         .insert(bolaoMatchState)
@@ -73,6 +73,9 @@ export async function propagateBracket(bolaoId: string): Promise<void> {
           target: [bolaoMatchState.bolaoId, bolaoMatchState.matchId],
           set: { ...patch, updatedAt: new Date() },
         });
+      // Keep in-memory snapshot in sync so later steps see the updated value
+      const existing = currentSlots.get(matchId) ?? { teamA: null, teamB: null };
+      currentSlots.set(matchId, { ...existing, ...(slot === "A" ? { teamA: newTeam } : { teamB: newTeam }) });
     }
 
     // 2. Compute standings — only for groups with all matches played (avoids phantom propagation)
@@ -108,6 +111,8 @@ export async function propagateBracket(bolaoId: string): Promise<void> {
       console.warn(`[propagateBracket] No THIRD_PLACE_TABLE entry for "${best8Groups}". Skipping 3rd-place slots.`);
     }
     const thirdSlotMap = new Map<string, Map<"A" | "B", string>>();
+    // Also track the correct group source for each 3rd-place slot write (to fix stale detection for r32-13..16)
+    const thirdSlotSource = new Map<string, SlotSource>(); // key: `${matchId}:${slot}` → group-3 src
     if (thirdSlots) {
       for (const ts of thirdSlots) {
         const team = best3rdByGroup.get(ts.group);
@@ -115,6 +120,7 @@ export async function propagateBracket(bolaoId: string): Promise<void> {
         let slotMap = thirdSlotMap.get(ts.matchId);
         if (!slotMap) { slotMap = new Map(); thirdSlotMap.set(ts.matchId, slotMap); }
         slotMap.set(ts.slot, team);
+        thirdSlotSource.set(`${ts.matchId}:${ts.slot}`, { kind: "group-3", group: ts.group });
       }
     }
 
@@ -124,36 +130,63 @@ export async function propagateBracket(bolaoId: string): Promise<void> {
       if (src.kind === "group-2") return groupStandings.get(src.group)?.[1] ?? null;
       if (src.kind === "group-3") return groupStandings.get(src.group)?.[2] ?? null;
       if (src.kind === "match-winner") {
+        // Use currentSlots for KO matches so step 5 writes are visible here
+        const slot = currentSlots.get(src.matchId);
         const m = matchById.get(src.matchId);
         if (!m || m.resultA == null || m.resultB == null) return null;
         const winner = m.winner ?? (m.resultA > m.resultB ? "A" : m.resultB > m.resultA ? "B" : null);
         if (!winner) return null;
-        return winner === "A" ? m.teamA : m.teamB;
+        // Prefer in-memory updated teams over stale snapshot
+        const teamA = slot?.teamA ?? m.teamA;
+        const teamB = slot?.teamB ?? m.teamB;
+        return winner === "A" ? teamA : teamB;
       }
       return null;
     }
 
     // 5. Walk R32_BRACKET: conditionally update each group→r32 slot
+    // For 3rd-place slots (r32-13..16), use the group source from thirdSlotSource so
+    // stale detection works correctly when standings change.
     for (const slot of R32_BRACKET) {
       const thirdOverrides = thirdSlotMap.get(slot.matchId);
       const teamA = thirdOverrides?.get("A") ?? resolve(slot.slotA);
       const teamB = thirdOverrides?.get("B") ?? resolve(slot.slotB);
-      await conditionalUpsert(slot.matchId, "A", teamA, slot.slotA);
-      await conditionalUpsert(slot.matchId, "B", teamB, slot.slotB);
+      const srcA = thirdSlotSource.get(`${slot.matchId}:A`) ?? slot.slotA;
+      const srcB = thirdSlotSource.get(`${slot.matchId}:B`) ?? slot.slotB;
+      await conditionalUpsert(slot.matchId, "A", teamA, srcA);
+      await conditionalUpsert(slot.matchId, "B", teamB, srcB);
     }
 
-    // 6. KO-to-KO propagation: winners/losers fill the next round's slots
+    // 6. KO-to-KO propagation: winners/losers fill the next round's slots.
+    // Matches without a result also propagate null downstream to clear stale slots.
     const koMatches = effective.filter((m) => m.stage !== "group");
     for (const m of koMatches) {
-      if (m.resultA == null || m.resultB == null) continue;
+      const src: SlotSource = { kind: "match-winner", matchId: m.id };
+      const { winnerTo, loserTo } = nextSlots(m.id);
+
+      if (m.resultA == null || m.resultB == null) {
+        // Result cleared — cascade null to downstream slots to remove stale teams
+        if (winnerTo) await conditionalUpsert(winnerTo.matchId, winnerTo.slot, null, src);
+        if (loserTo) await conditionalUpsert(loserTo.matchId, loserTo.slot, null, src);
+        continue;
+      }
+
       const winner = m.winner ?? (m.resultA > m.resultB ? "A" : m.resultB > m.resultA ? "B" : null);
-      if (!winner) continue;
-      const winnerTeam = winner === "A" ? m.teamA : m.teamB;
-      const loserTeam = winner === "A" ? m.teamB : m.teamA;
+      if (!winner) {
+        // Draw with no penalty winner decided yet — clear downstream too
+        if (winnerTo) await conditionalUpsert(winnerTo.matchId, winnerTo.slot, null, src);
+        if (loserTo) await conditionalUpsert(loserTo.matchId, loserTo.slot, null, src);
+        continue;
+      }
+
+      // Use in-memory updated slot values (currentSlots) so step 5 r32 writes are visible here
+      const currentSlot = currentSlots.get(m.id);
+      const teamA = currentSlot?.teamA ?? m.teamA;
+      const teamB = currentSlot?.teamB ?? m.teamB;
+      const winnerTeam = winner === "A" ? teamA : teamB;
+      const loserTeam = winner === "A" ? teamB : teamA;
       if (!winnerTeam || !loserTeam) continue;
 
-      const { winnerTo, loserTo } = nextSlots(m.id);
-      const src: SlotSource = { kind: "match-winner", matchId: m.id };
       if (winnerTo) await conditionalUpsert(winnerTo.matchId, winnerTo.slot, winnerTeam, src);
       if (loserTo) await conditionalUpsert(loserTo.matchId, loserTo.slot, loserTeam, src);
     }

@@ -38,29 +38,27 @@ export async function propagateBracket(bolaoId: string): Promise<void> {
       groupMap.set(gt.groupId, arr);
     }
 
-    // 2. Compute standings for each group
+    // 2. Compute standings for each group (cache full rows for reuse in step 3)
+    type GroupRows = ReturnType<typeof computeStandings>;
+    const groupRows = new Map<string, GroupRows>(); // groupId → sorted standings
     const groupStandings = new Map<string, string[]>(); // groupId → [1st, 2nd, 3rd, 4th] team codes
     for (const [groupId, teams] of groupMap) {
       const groupMatches = effective.filter(
         (m) => m.stage === "group" && m.groupId === groupId,
       );
       const standings = computeStandings(teams, groupMatches);
+      groupRows.set(groupId, standings);
       groupStandings.set(groupId, standings.map((s) => s.team));
     }
 
-    // 3. Select 8 best 3rd-place teams
+    // 3. Select 8 best 3rd-place teams (reuse cached rows — no second computeStandings call)
     type Third = { group: string; team: string; pts: number; gd: number; gf: number }
     const thirds: Third[] = [];
     for (const [groupId, ranked] of groupStandings) {
       if (ranked.length < 3) continue;
-      const third = ranked[2];
-      const groupMatches = effective.filter(
-        (m) => m.stage === "group" && m.groupId === groupId,
-      );
-      const standings = computeStandings(groupMap.get(groupId)!, groupMatches);
-      const row = standings.find((s) => s.team === third);
+      const row = groupRows.get(groupId)?.[2];
       if (!row) continue;
-      thirds.push({ group: groupId, team: third, pts: row.Pts, gd: row.GD, gf: row.GF });
+      thirds.push({ group: groupId, team: row.team, pts: row.Pts, gd: row.GD, gf: row.GF });
     }
     // Sort by pts → gd → gf → group (deterministic tiebreaker)
     thirds.sort(

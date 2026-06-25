@@ -54,6 +54,7 @@ export async function saveMatch(formData: FormData) {
   // Clear result
   if (rawA === "" || rawA == null || rawB === "" || rawB == null) {
     await upsertState(bolaoId, matchId, { ...teamPatch, resultA: null, resultB: null, winner: null });
+    await propagateBracket(bolaoId);
     revalidatePath(`/bolao/${bolaoId}`, "layout");
     return { ok: true } as const;
   }

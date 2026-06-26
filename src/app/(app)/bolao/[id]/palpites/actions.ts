@@ -4,9 +4,10 @@ import { revalidatePath } from "next/cache";
 import { requireAuth } from "@/lib/auth";
 import { requireBolaoAccess } from "@/lib/access";
 import { db } from "@/db";
-import { bolaoMatchState, matches, matchOfficialResult, predictions } from "@/db/schema";
-import { eq, sql } from "drizzle-orm";
+import { bolaoMatchState, championPicks, matches, matchOfficialResult, predictions } from "@/db/schema";
+import { and, eq, sql } from "drizzle-orm";
 import { isPredictionLocked } from "@/lib/prediction-lock";
+import { getChampionWindow } from "@/lib/champion";
 
 export async function savePrediction(formData: FormData) {
   const { userId } = await requireAuth();
@@ -60,11 +61,7 @@ export async function savePrediction(formData: FormData) {
     return { error: "Resultado já publicado." } as const;
   }
   if (isPredictionLocked(row.kickoffAt)) {
-    return { error: "Palpites bloqueados 24h antes do jogo." } as const;
-  }
-
-  if (row.stage === "final" && scoreA === scoreB) {
-    return { error: "Empate não permitido na final — escolha o campeão." } as const;
+    return { error: "Palpites bloqueados 1h antes do jogo." } as const;
   }
 
   await db
@@ -74,6 +71,31 @@ export async function savePrediction(formData: FormData) {
       target: [predictions.bolaoId, predictions.userId, predictions.matchId],
       set: { scoreA, scoreB, updatedAt: new Date() },
     });
+
+  revalidatePath(`/bolao/${bolaoId}/palpites`);
+  return { ok: true } as const;
+}
+
+export async function pickChampion(formData: FormData) {
+  const { userId } = await requireAuth();
+
+  const bolaoId = String(formData.get("bolaoId") ?? "");
+  const teamCode = String(formData.get("teamCode") ?? "");
+  if (!bolaoId || !teamCode) return { error: "Dados inválidos." } as const;
+
+  await requireBolaoAccess({ userId, bolaoId });
+
+  const window = await getChampionWindow(bolaoId);
+  if (!window.opened) return { error: "Fase ainda não abriu." } as const;
+  if (window.locked) return { error: "Janela de escolha encerrada." } as const;
+  if (!window.teams.includes(teamCode)) return { error: "Time inválido." } as const;
+
+  const existing = await db.query.championPicks.findFirst({
+    where: and(eq(championPicks.bolaoId, bolaoId), eq(championPicks.userId, userId)),
+  });
+  if (existing) return { error: "Você já escolheu seu campeão." } as const;
+
+  await db.insert(championPicks).values({ bolaoId, userId, teamCode });
 
   revalidatePath(`/bolao/${bolaoId}/palpites`);
   return { ok: true } as const;

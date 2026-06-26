@@ -74,7 +74,7 @@ export default async function PalpitesPage({ params }: { params: Promise<{ id: s
       <h2 style={{ margin: "0 0 14px", fontSize: 18, letterSpacing: "-0.015em" }}>Seus palpites</h2>
       <p className="page-sub" style={{ marginTop: 0, marginBottom: 18 }}>
         Placar exato = <b style={{ color: "var(--accent)" }}>+10 pts</b>. Só o vencedor ={" "}
-        <b style={{ color: "var(--accent)" }}>+5 pts</b>. Palpite bloqueia 24h antes do jogo.
+        <b style={{ color: "var(--accent)" }}>+5 pts</b>. Palpite bloqueia 1h antes do jogo.
         <br />
         Quando o mata-mata abrir, escolha o campeão entre os 32 times — acertar vale{" "}
         <b style={{ color: "var(--accent)" }}>+50 pts extras</b>. Escolha única, sem troca.

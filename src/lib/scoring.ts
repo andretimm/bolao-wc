@@ -14,28 +14,15 @@ export function scorePrediction(pred: Score, result: Score | null): number {
   return predWinner === realWinner ? 5 : 0;
 }
 
-/** Pontos extras por acertar o campeão (vencedor da final). */
+/** Pontos extras por escolher corretamente o campeão na abertura das oitavas (r16). */
 export const CHAMPION_BONUS = 50;
 
 /**
- * Retorna CHAMPION_BONUS se:
- *  - há resultado da final
- *  - palpite não é empate
- *  - resultado não é empate
- *  - sinal(palpite.a - palpite.b) === sinal(resultado.a - resultado.b)
- * Caso contrário retorna 0.
- *
- * Chamado apenas para o jogo cujo stage === "final".
+ * +50 se o time escolhido pelo usuário (championPicks.teamCode) é o time que
+ * de fato venceu a final. 0 caso contrário, ou se a final ainda não terminou,
+ * ou se o usuário nunca escolheu.
  */
-export function championBonus(
-  pred: { scoreA: number; scoreB: number } | null,
-  res: { resultA: number | null; resultB: number | null },
-): number {
-  if (!pred) return 0;
-  if (res.resultA == null || res.resultB == null) return 0;
-  if (pred.scoreA === pred.scoreB) return 0;
-  if (res.resultA === res.resultB) return 0;
-  return Math.sign(pred.scoreA - pred.scoreB) === Math.sign(res.resultA - res.resultB)
-    ? CHAMPION_BONUS
-    : 0;
+export function championPickBonus(pickTeam: string | null, championTeam: string | null): number {
+  if (!pickTeam || !championTeam) return 0;
+  return pickTeam === championTeam ? CHAMPION_BONUS : 0;
 }

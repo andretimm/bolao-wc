@@ -44,7 +44,7 @@ export function ChampionPickModal({ bolaoId, teams }: { bolaoId: string; teams: 
     >
       <div
         style={{
-          width: "min(520px, 100%)",
+          width: "min(760px, 100%)",
           background: "var(--bg-elev)",
           border: "1px solid var(--border)",
           borderRadius: "var(--radius-lg)",
@@ -68,7 +68,7 @@ export function ChampionPickModal({ bolaoId, teams }: { bolaoId: string; teams: 
                 gridTemplateColumns: "repeat(4, 1fr)",
                 gap: 8,
                 padding: "16px 24px",
-                maxHeight: 360,
+                maxHeight: 520,
                 overflowY: "auto",
               }}
             >

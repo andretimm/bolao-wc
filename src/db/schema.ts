@@ -140,6 +140,20 @@ export const predictions = pgTable(
   ],
 );
 
+/* ─── Champion picks — escolha única por usuário, feita na abertura das oitavas (r16).
+   Sem update/delete exposto: a ausência de qualquer action de edição é a garantia de
+   "não pode trocar depois". */
+export const championPicks = pgTable(
+  "champion_picks",
+  {
+    bolaoId: text("bolao_id").notNull().references(() => boloes.id, { onDelete: "cascade" }),
+    userId: text("user_id").notNull(),
+    teamCode: text("team_code").notNull().references(() => teams.code),
+    pickedAt: timestamp("picked_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.bolaoId, t.userId] })],
+);
+
 /* ─── Relations ──────────────────────────────────────── */
 export const boloesRelations = relations(boloes, ({ many }) => ({
   memberships: many(memberships),

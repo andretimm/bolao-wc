@@ -1,13 +1,13 @@
 import { requireAuth } from "@/lib/auth";
 import { requireBolaoAccess } from "@/lib/access";
 import { db } from "@/db";
-import { memberships, predictions, teams } from "@/db/schema";
+import { championPicks, memberships, predictions, teams } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { getEffectiveMatches, pointsForPrediction } from "@/lib/match-state";
+import { getChampionTeam, getChampionWindow } from "@/lib/champion";
 import { getUsers } from "@/lib/clerk-users";
 import { colorFor } from "@/lib/colors";
-import type { TeamLite } from "@/components/flag";
-import { championBonus } from "@/lib/scoring";
+import { Flag, type TeamLite } from "@/components/flag";
 import type { MatchCardItem } from "./card";
 import { TodosList } from "./list";
 import { roundFilterKey } from "@/lib/round";
@@ -32,16 +32,21 @@ export default async function TodosPage({ params }: { params: Promise<{ id: stri
   const { id: bolaoId } = await params;
   await requireBolaoAccess({ userId, bolaoId });
 
-  const [effective, allTeams, members, allPreds] = await Promise.all([
-    getEffectiveMatches(bolaoId),
-    db.select().from(teams),
-    db.select().from(memberships).where(eq(memberships.bolaoId, bolaoId)),
-    db.select().from(predictions).where(eq(predictions.bolaoId, bolaoId)),
-  ]);
+  const [effective, allTeams, members, allPreds, championWindow, championTeam, picks] =
+    await Promise.all([
+      getEffectiveMatches(bolaoId),
+      db.select().from(teams),
+      db.select().from(memberships).where(eq(memberships.bolaoId, bolaoId)),
+      db.select().from(predictions).where(eq(predictions.bolaoId, bolaoId)),
+      getChampionWindow(bolaoId),
+      getChampionTeam(bolaoId),
+      db.select().from(championPicks).where(eq(championPicks.bolaoId, bolaoId)),
+    ]);
 
   const teamMap = new Map<string, TeamLite>(allTeams.map((t) => [t.code, t]));
   const userMap = await getUsers(members.map((m) => m.userId));
   const now = Date.now();
+  const pickByUser = new Map(picks.map((p) => [p.userId, p.teamCode]));
 
   const predByMatch = new Map<
     string,
@@ -61,7 +66,6 @@ export default async function TodosPage({ params }: { params: Promise<{ id: stri
   const items: MatchCardItem[] = ready.map((m) => {
     const hasResult = m.resultA != null && m.resultB != null;
     const predsForMatch = predByMatch.get(m.id) ?? new Map();
-    const isFinal = m.stage === "final";
 
     return {
       matchId: m.id,
@@ -79,7 +83,6 @@ export default async function TodosPage({ params }: { params: Promise<{ id: stri
       resultA: m.resultA,
       resultB: m.resultB,
       hasResult,
-      isFinal,
       members: members.map((mem) => {
         const u = userMap.get(mem.userId);
         const name = u?.name ?? mem.userId.slice(0, 6);
@@ -93,16 +96,12 @@ export default async function TodosPage({ params }: { params: Promise<{ id: stri
         const pred = predsForMatch.get(mem.userId);
         const isMe = mem.userId === userId;
 
-        const earned = pred
+        const total = pred
           ? pointsForPrediction(
               { scoreA: pred.scoreA, scoreB: pred.scoreB },
               { resultA: m.resultA, resultB: m.resultB },
             )
           : 0;
-        const champ = pred
-          ? championBonus(pred, { resultA: m.resultA, resultB: m.resultB })
-          : 0;
-        const total = earned + (isFinal ? champ : 0);
 
         return {
           userId: mem.userId,
@@ -130,6 +129,59 @@ export default async function TodosPage({ params }: { params: Promise<{ id: stri
       <p className="page-sub" style={{ marginTop: 0, marginBottom: 18 }}>
         Veja o palpite de cada membro e quando foi feito. Jogos com resultado vêm recolhidos — clique para expandir.
       </p>
+
+      {championWindow.opened && (
+        <div className="card" style={{ marginBottom: 24 }}>
+          <div className="card-head">
+            <h3>Campeões escolhidos</h3>
+          </div>
+          {members.map((mem) => {
+            const u = userMap.get(mem.userId);
+            const name = u?.name ?? mem.userId.slice(0, 6);
+            const pickCode = pickByUser.get(mem.userId) ?? null;
+            const pickTeam = pickCode ? teamMap.get(pickCode) ?? null : null;
+            const correct = championTeam != null && pickCode === championTeam;
+            const wrong = championTeam != null && pickCode != null && pickCode !== championTeam;
+
+            return (
+              <div
+                key={mem.userId}
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr auto",
+                  gap: 12,
+                  padding: "10px 16px",
+                  borderBottom: "1px solid var(--border)",
+                  alignItems: "center",
+                }}
+              >
+                <span style={{ fontSize: 13, fontWeight: 500 }}>{name}</span>
+                <span
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    fontSize: 13,
+                    fontWeight: 600,
+                    color: correct ? "var(--accent)" : wrong ? "var(--text-3)" : undefined,
+                  }}
+                >
+                  {pickTeam ? (
+                    <>
+                      <Flag team={pickTeam} size="sm" />
+                      {pickTeam.name}
+                    </>
+                  ) : championWindow.locked ? (
+                    "não escolheu"
+                  ) : (
+                    "—"
+                  )}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {items.length === 0 ? (
         <div className="empty">Nenhum jogo com times definidos ainda.</div>

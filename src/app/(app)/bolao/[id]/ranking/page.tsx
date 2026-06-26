@@ -1,8 +1,10 @@
 import { requireAuth } from "@/lib/auth";
 import { requireBolaoAccess } from "@/lib/access";
 import { db } from "@/db";
-import { bolaoMatchState, matches, matchOfficialResult, memberships, predictions } from "@/db/schema";
+import { bolaoMatchState, championPicks, matches, matchOfficialResult, memberships, predictions } from "@/db/schema";
 import { and, eq, sql } from "drizzle-orm";
+import { getChampionTeam } from "@/lib/champion";
+import { championPickBonus } from "@/lib/scoring";
 import { getUsers } from "@/lib/clerk-users";
 import { colorFor } from "@/lib/colors";
 import Image from "next/image"
@@ -38,14 +40,6 @@ export default async function RankingPage({ params }: { params: Promise<{ id: st
            and not (${predictions.scoreA} = ${rA} and ${predictions.scoreB} = ${rB})
            and sign(${predictions.scoreA} - ${predictions.scoreB}) <> sign(${rA} - ${rB})
           then 1 else 0 end), 0)::int`,
-      championBonus: sql<number>`
-        coalesce(sum(case
-          when ${matches.stage} = 'final'
-           and ${rA} is not null
-           and ${predictions.scoreA} <> ${predictions.scoreB}
-           and ${rA} <> ${rB}
-           and sign(${predictions.scoreA} - ${predictions.scoreB}) = sign(${rA} - ${rB})
-          then 50 else 0 end), 0)::int`,
       points: sql<number>`
         coalesce(sum(case
           when ${rA} is not null then
@@ -54,15 +48,7 @@ export default async function RankingPage({ params }: { params: Promise<{ id: st
               when sign(${predictions.scoreA} - ${predictions.scoreB}) = sign(${rA} - ${rB}) then 5
               else 0
             end
-          else 0 end), 0)::int
-        +
-        coalesce(sum(case
-          when ${matches.stage} = 'final'
-           and ${rA} is not null
-           and ${predictions.scoreA} <> ${predictions.scoreB}
-           and ${rA} <> ${rB}
-           and sign(${predictions.scoreA} - ${predictions.scoreB}) = sign(${rA} - ${rB})
-          then 50 else 0 end), 0)::int`,
+          else 0 end), 0)::int`,
     })
     .from(memberships)
     .leftJoin(
@@ -78,8 +64,26 @@ export default async function RankingPage({ params }: { params: Promise<{ id: st
     .where(eq(memberships.bolaoId, bolaoId))
     .groupBy(memberships.userId);
 
-  const sorted = [...agg].sort((a, b) => b.points - a.points || b.exact - a.exact);
-  const userMap = await getUsers(sorted.map((r) => r.userId));
+  const [championTeam, picks] = await Promise.all([
+    getChampionTeam(bolaoId),
+    db.select().from(championPicks).where(eq(championPicks.bolaoId, bolaoId)),
+  ]);
+  const pickByUser = new Map(picks.map((p) => [p.userId, p.teamCode]));
+
+  const withBonus = agg.map((r) => {
+    const bonus = championPickBonus(pickByUser.get(r.userId) ?? null, championTeam);
+    return { ...r, championBonus: bonus, points: r.points + bonus };
+  });
+
+  const userMap = await getUsers(withBonus.map((r) => r.userId));
+  const sorted = [...withBonus].sort((a, b) => {
+    if (b.points !== a.points) return b.points - a.points;
+    if (b.exact !== a.exact) return b.exact - a.exact;
+    if (b.winners !== a.winners) return b.winners - a.winners;
+    const nameA = userMap.get(a.userId)?.name ?? a.userId;
+    const nameB = userMap.get(b.userId)?.name ?? b.userId;
+    return nameA.localeCompare(nameB, "pt-BR");
+  });
 
   return (
     <div>

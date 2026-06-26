@@ -24,7 +24,6 @@ export type MatchCardItem = {
   resultA: number | null;
   resultB: number | null;
   hasResult: boolean;
-  isFinal: boolean;
   members: MatchCardMember[];
 };
 
@@ -36,7 +35,6 @@ export function MatchCard({
   resultA,
   resultB,
   hasResult,
-  isFinal,
   members,
 }: MatchCardItem) {
   return (
@@ -70,7 +68,6 @@ export function MatchCard({
           }}
         >
           {round.toUpperCase()} · {kickoffLabel}
-          {isFinal && <span style={{ color: "var(--accent)" }}> · CAMPEÃO +50</span>}
         </div>
       </summary>
 

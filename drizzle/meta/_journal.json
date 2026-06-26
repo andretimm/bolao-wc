@@ -8,6 +8,13 @@
       "when": 1778679121093,
       "tag": "0000_futuristic_infant_terrible",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1782393867436,
+      "tag": "0001_abandoned_chameleon",
+      "breakpoints": true
     }
   ]
 }

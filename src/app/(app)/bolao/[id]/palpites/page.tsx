@@ -1,11 +1,13 @@
 import { requireAuth } from "@/lib/auth";
 import { requireBolaoAccess } from "@/lib/access";
 import { db } from "@/db";
-import { predictions, teams } from "@/db/schema";
+import { championPicks, predictions, teams } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
 import { getEffectiveMatches, pointsForPrediction } from "@/lib/match-state";
+import { getChampionWindow } from "@/lib/champion";
 import type { TeamLite } from "@/components/flag";
 import { PalpitesList } from "./list";
+import { ChampionPickModal } from "./champion-modal";
 import { isPredictionLocked } from "@/lib/prediction-lock";
 import { roundFilterKey } from "@/lib/round";
 
@@ -16,25 +18,28 @@ export default async function PalpitesPage({ params }: { params: Promise<{ id: s
   const { id: bolaoId } = await params;
   await requireBolaoAccess({ userId, bolaoId });
 
-  const [effective, allTeams, myPreds] = await Promise.all([
+  const [effective, allTeams, myPreds, myChampionPick, championWindow] = await Promise.all([
     getEffectiveMatches(bolaoId),
     db.select().from(teams),
     db
       .select()
       .from(predictions)
       .where(and(eq(predictions.bolaoId, bolaoId), eq(predictions.userId, userId))),
+    db.query.championPicks.findFirst({
+      where: and(eq(championPicks.bolaoId, bolaoId), eq(championPicks.userId, userId)),
+    }),
+    getChampionWindow(bolaoId),
   ]);
 
   const teamMap = new Map<string, TeamLite>(allTeams.map((t) => [t.code, t]));
   const predMap = new Map(myPreds.map((p) => [p.matchId, p]));
-  const now = Date.now();
 
   const ready = effective.filter((m) => m.teamA && m.teamB);
 
   const items = ready.map((m) => {
     const pred = predMap.get(m.id);
     const hasResult = m.resultA != null && m.resultB != null;
-    const locked = hasResult || isPredictionLocked(m.kickoffAt, now);
+    const locked = hasResult || isPredictionLocked(m.kickoffAt, Date.now());
     const earned = pointsForPrediction(
       pred ? { scoreA: pred.scoreA, scoreB: pred.scoreB } : null,
       { resultA: m.resultA, resultB: m.resultB },
@@ -54,11 +59,14 @@ export default async function PalpitesPage({ params }: { params: Promise<{ id: s
       initialScoreA: pred?.scoreA ?? null,
       initialScoreB: pred?.scoreB ?? null,
       earned,
-      isFinal: m.stage === "final",
     };
   });
 
   const rounds = Array.from(new Set(items.map((i) => i.roundKey)));
+  const showPicker = championWindow.opened && !championWindow.locked && !myChampionPick;
+  const champTeams = championWindow.teams
+    .map((code) => teamMap.get(code))
+    .filter((t): t is TeamLite => !!t);
 
   return (
     <div>
@@ -67,9 +75,23 @@ export default async function PalpitesPage({ params }: { params: Promise<{ id: s
         Placar exato = <b style={{ color: "var(--accent)" }}>+10 pts</b>. Só o vencedor ={" "}
         <b style={{ color: "var(--accent)" }}>+5 pts</b>. Palpite bloqueia 24h antes do jogo.
         <br />
-        Acertar o campeão (vencedor da final) ={" "}
-        <b style={{ color: "var(--accent)" }}>+50 pts extras</b>. Empate não permitido na final.
+        Quando o mata-mata abrir, escolha o campeão entre os 32 times — acertar vale{" "}
+        <b style={{ color: "var(--accent)" }}>+50 pts extras</b>. Escolha única, sem troca.
       </p>
+
+      {myChampionPick && (
+        <div
+          className="tag accent"
+          style={{ marginBottom: 18, display: "inline-flex", alignItems: "center", gap: 6 }}
+        >
+          Seu campeão: {teamMap.get(myChampionPick.teamCode)?.name ?? myChampionPick.teamCode}
+        </div>
+      )}
+      {championWindow.opened && championWindow.locked && !myChampionPick && (
+        <div className="tag danger" style={{ marginBottom: 18 }}>
+          Você não escolheu a tempo — sem chance de bônus de campeão desta vez.
+        </div>
+      )}
 
       {items.length === 0 ? (
         <div className="card">
@@ -78,6 +100,8 @@ export default async function PalpitesPage({ params }: { params: Promise<{ id: s
       ) : (
         <PalpitesList bolaoId={bolaoId} items={items} rounds={rounds} />
       )}
+
+      {showPicker && <ChampionPickModal bolaoId={bolaoId} teams={champTeams} />}
     </div>
   );
 }

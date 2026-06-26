@@ -19,10 +19,10 @@ export type ThirdSlot = {
 }
 
 /**
- * FIFA 2026 official bracket — group-stage → r32 slots.
- * Groups A-L paired as (A,B), (C,D), (E,F), (G,H), (I,J), (K,L).
- * VERIFY against official FIFA 2026 bracket before using in production.
- * r32-N → r16-⌈N/2⌉ (winner slot A if N odd, B if N even) via nextSlots() in bracket.ts.
+ * FIFA 2026 group→r32 bracket.
+ * Groups A-L paired as (A,B),(C,D),(E,F),(G,H),(I,J),(K,L).
+ * r32-13..16: both slots are 3rd-place teams — THIRD_PLACE_TABLE overrides both.
+ * VERIFY r32-1..12 against official FIFA 2026 bracket before production.
  */
 export const R32_BRACKET: BracketSlot[] = [
   { matchId: "r32-1",  slotA: { kind: "group-1", group: "A" }, slotB: { kind: "group-2", group: "B" } },
@@ -37,43 +37,56 @@ export const R32_BRACKET: BracketSlot[] = [
   { matchId: "r32-10", slotA: { kind: "group-1", group: "H" }, slotB: { kind: "group-2", group: "G" } },
   { matchId: "r32-11", slotA: { kind: "group-1", group: "J" }, slotB: { kind: "group-2", group: "I" } },
   { matchId: "r32-12", slotA: { kind: "group-1", group: "L" }, slotB: { kind: "group-2", group: "K" } },
-  // r32-13 through r32-16: ENTIRELY PLACEHOLDER — the 8 best 3rd-place teams fill
-  // specific slots here, paired against specific group qualifiers (winner or runner-up).
-  // BOTH slotA and slotB below are WRONG and must be replaced using the official FIFA
-  // 2026 bracket. The actual opponents depend on which groups produce the best 3rds.
-  // The propagate-bracket.ts code uses THIRD_PLACE_TABLE to OVERRIDE whichever slot
-  // holds a 3rd-place team; the other slot is resolved from whichever group qualifier
-  // the official bracket assigns. Replace all four entries in Task 5.
+  // r32-13..16: THIRD_PLACE_TABLE overrides both slots — placeholder sources never resolved
   { matchId: "r32-13", slotA: { kind: "group-3", group: "?" as string }, slotB: { kind: "group-3", group: "?" as string } },
   { matchId: "r32-14", slotA: { kind: "group-3", group: "?" as string }, slotB: { kind: "group-3", group: "?" as string } },
   { matchId: "r32-15", slotA: { kind: "group-3", group: "?" as string }, slotB: { kind: "group-3", group: "?" as string } },
   { matchId: "r32-16", slotA: { kind: "group-3", group: "?" as string }, slotB: { kind: "group-3", group: "?" as string } },
 ]
 
+// Fixed slot order for 3rd-place distribution
+const THIRD_SLOTS: Array<{ matchId: string; slot: "A" | "B" }> = [
+  { matchId: "r32-13", slot: "A" },
+  { matchId: "r32-13", slot: "B" },
+  { matchId: "r32-14", slot: "A" },
+  { matchId: "r32-14", slot: "B" },
+  { matchId: "r32-15", slot: "A" },
+  { matchId: "r32-15", slot: "B" },
+  { matchId: "r32-16", slot: "A" },
+  { matchId: "r32-16", slot: "B" },
+]
+
+function buildThirdPlaceTable(): Record<string, ThirdSlot[]> {
+  const groups = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"]
+  const table: Record<string, ThirdSlot[]> = {}
+
+  function combine(arr: string[], k: number, start = 0): string[][] {
+    if (k === 0) return [[]]
+    const result: string[][] = []
+    for (let i = start; i <= arr.length - k; i++) {
+      for (const rest of combine(arr, k - 1, i + 1)) {
+        result.push([arr[i], ...rest])
+      }
+    }
+    return result
+  }
+
+  // MOCK rule: sorted groups → sorted slots sequentially.
+  // REPLACE with official FIFA 2026 distribution table before production.
+  for (const combo of combine(groups, 8)) {
+    const key = combo.join("") // already sorted by combine()
+    table[key] = combo.map((group, i) => ({ ...THIRD_SLOTS[i], group }))
+  }
+
+  return table
+}
+
 /**
- * FIFA 2026 official 3rd-place distribution table.
- * Key: sorted letters of the 8 groups that provided a 3rd-place qualifier, e.g. "ABCDEFGH".
+ * FIFA 2026 third-place bracket distribution table.
+ * Key: sorted letters of the 8 groups that produced a qualifying 3rd-place team, e.g. "ABCDEFGH".
  * Value: which r32 slot each 3rd gets.
  *
- * There are C(12,8) = 495 possible combinations.
- * REPLACE with the complete official FIFA 2026 table before production use.
- * Reference: FIFA World Cup 2026 regulations, Annex on third-place bracket allocation.
- *
- * Format for each entry: { matchId: "r32-N", slot: "A"|"B", group: "X" }
- * means the 3rd-place team from group X goes into slot A (or B) of match r32-N.
+ * MOCK: current rule assigns sorted groups → sorted slots sequentially (all 495 combinations).
+ * REPLACE with official FIFA 2026 regulations annex before production.
  */
-export const THIRD_PLACE_TABLE: Record<string, ThirdSlot[]> = {
-  // Placeholder — only a few example combinations shown.
-  // The full table must be sourced from official FIFA 2026 regulations.
-  "ABCDEFGH": [
-    { matchId: "r32-13", slot: "A", group: "A" },
-    { matchId: "r32-13", slot: "B", group: "B" }, // example — verify
-    { matchId: "r32-14", slot: "A", group: "C" },
-    { matchId: "r32-14", slot: "B", group: "D" },
-    { matchId: "r32-15", slot: "A", group: "E" },
-    { matchId: "r32-15", slot: "B", group: "F" },
-    { matchId: "r32-16", slot: "A", group: "G" },
-    { matchId: "r32-16", slot: "B", group: "H" },
-  ],
-  // Add remaining 494 combinations from official FIFA source...
-}
+export const THIRD_PLACE_TABLE: Record<string, ThirdSlot[]> = buildThirdPlaceTable()

@@ -59,6 +59,7 @@ export default async function PalpitesPage({ params }: { params: Promise<{ id: s
       initialScoreA: pred?.scoreA ?? null,
       initialScoreB: pred?.scoreB ?? null,
       earned,
+      hasPrediction: pred != null,
     };
   });
 

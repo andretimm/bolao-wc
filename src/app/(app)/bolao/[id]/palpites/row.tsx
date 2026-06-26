@@ -18,7 +18,7 @@ export function PredictionRow(props: {
   initialScoreA: number | null;
   initialScoreB: number | null;
   earned: number;
-  isFinal: boolean;
+  hasPrediction: boolean;
 }) {
   const [a, setA] = useState<string>(props.initialScoreA?.toString() ?? "");
   const [b, setB] = useState<string>(props.initialScoreB?.toString() ?? "");
@@ -32,10 +32,6 @@ export function PredictionRow(props: {
 
   const submit = () => {
     setError(null);
-    if (props.isFinal && a !== "" && b !== "" && Number(a) === Number(b)) {
-      setError("Sem empate na final.");
-      return;
-    }
     const fd = new FormData();
     fd.set("bolaoId", props.bolaoId);
     fd.set("matchId", props.matchId);
@@ -62,8 +58,10 @@ export function PredictionRow(props: {
       minute: "2-digit",
     });
 
+  const missing = !props.hasPrediction && !props.locked && !props.hasResult;
+
   return (
-    <div className="palpite-row">
+    <div className="palpite-row" style={missing ? { borderLeft: "3px solid var(--warning, #f59e0b)" } : undefined}>
       <TeamLabel team={props.teamA} />
       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
         <div className={`score-pill ${pending ? "is-pending" : ""}`}>
@@ -127,8 +125,6 @@ export function PredictionRow(props: {
           </>
         ) : props.locked ? (
           <span className="tag danger">FECHADO</span>
-        ) : props.isFinal ? (
-          <span className="tag accent">CAMPEÃO +50</span>
         ) : (
           <span className="tag accent">ABERTO</span>
         )}

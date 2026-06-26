@@ -19,7 +19,7 @@ export type PalpitesItem = {
   initialScoreA: number | null;
   initialScoreB: number | null;
   earned: number;
-  isFinal: boolean;
+  hasPrediction: boolean;
 };
 
 export function PalpitesList({
@@ -32,12 +32,28 @@ export function PalpitesList({
   rounds: string[];
 }) {
   const [selectedRound, setSelectedRound] = useState("all");
-  const filtered =
-    selectedRound === "all" ? items : items.filter((i) => i.roundKey === selectedRound);
+  const [onlyMissing, setOnlyMissing] = useState(false);
+
+  const missingCount = items.filter((i) => !i.hasPrediction && !i.locked && !i.hasResult).length;
+
+  const byRound = selectedRound === "all" ? items : items.filter((i) => i.roundKey === selectedRound);
+  const filtered = onlyMissing ? byRound.filter((i) => !i.hasPrediction && !i.locked && !i.hasResult) : byRound;
 
   return (
     <>
-      <RoundSelect rounds={rounds} value={selectedRound} onChange={setSelectedRound} />
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
+        <RoundSelect rounds={rounds} value={selectedRound} onChange={(r) => { setSelectedRound(r); setOnlyMissing(false); }} />
+        {missingCount > 0 && (
+          <button
+            type="button"
+            className={`btn${onlyMissing ? " primary" : ""}`}
+            style={{ fontSize: 12, padding: "4px 10px" }}
+            onClick={() => setOnlyMissing((v) => !v)}
+          >
+            {missingCount} sem palpite
+          </button>
+        )}
+      </div>
       <div className="card">
         {filtered.length === 0 && <div className="empty">Nenhum jogo nessa rodada.</div>}
         {filtered.map((item) => (

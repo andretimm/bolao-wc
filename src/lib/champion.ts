@@ -18,8 +18,8 @@ export async function getChampionWindow(bolaoId: string): Promise<ChampionWindow
   }
 
   const teams = Array.from(new Set(r32.flatMap((m) => [m.teamA as string, m.teamB as string])));
-  const earliestKickoff = Math.min(...r32.map((m) => m.kickoffAt.getTime()));
-  const locked = Date.now() >= earliestKickoff;
+  // Fixed deadline: 2026-06-29 13:00 BRT
+  const locked = Date.now() >= new Date("2026-06-29T13:00:00-03:00").getTime();
 
   return { teams, opened: true, locked };
 }
